@@ -1,0 +1,37 @@
+server:
+  port: 8084
+  shutdown: graceful
+
+spring:
+  application:
+    name: workload-service
+  lifecycle:
+    timeout-per-shutdown-phase: 15s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+    prometheus:
+      enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      sla:
+        http.server.requests: 50ms,100ms,200ms,500ms,1s
+
+workload:
+  default-iterations: 10000000
