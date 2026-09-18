@@ -3,6 +3,7 @@ package com.autoscaling.backend.controller;
 import com.autoscaling.backend.dto.ComparisonResponse;
 import com.autoscaling.backend.dto.DashboardLiveResponse;
 import com.autoscaling.backend.dto.ExperimentResponse;
+import com.autoscaling.backend.dto.LiveMetricsHistoryResponse;
 import com.autoscaling.backend.service.ExperimentLifecycleService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -34,6 +35,17 @@ public class DashboardController {
     public ResponseEntity<DashboardLiveResponse> getLiveTelemetry() {
         DashboardLiveResponse live = lifecycleService.getLiveDashboard();
         return ResponseEntity.ok(live);
+    }
+
+    /**
+     * Returns live time-series history vectors for dashboard charts.
+     */
+    @GetMapping("/live/series")
+    public ResponseEntity<LiveMetricsHistoryResponse> getLiveSeries(
+            @RequestParam(name = "windowSeconds", defaultValue = "300") int windowSeconds,
+            @RequestParam(name = "step", defaultValue = "5s") String step) {
+        LiveMetricsHistoryResponse series = lifecycleService.getLiveHistory(windowSeconds, step);
+        return ResponseEntity.ok(series);
     }
 
     /**

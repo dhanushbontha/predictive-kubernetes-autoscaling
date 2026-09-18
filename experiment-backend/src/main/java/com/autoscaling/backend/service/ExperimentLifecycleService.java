@@ -3,6 +3,7 @@ package com.autoscaling.backend.service;
 import com.autoscaling.backend.dto.ComparisonResponse;
 import com.autoscaling.backend.dto.DashboardLiveResponse;
 import com.autoscaling.backend.dto.ExperimentResponse;
+import com.autoscaling.backend.dto.LiveMetricsHistoryResponse;
 import com.autoscaling.backend.dto.StartExperimentRequest;
 import com.autoscaling.backend.model.AutoscalingMode;
 import com.autoscaling.backend.model.Experiment;
@@ -33,13 +34,17 @@ public class ExperimentLifecycleService {
     private static final Logger log = LoggerFactory.getLogger(ExperimentLifecycleService.class);
 
     private final KubernetesOrchestratorService kubernetesService;
+    private final PrometheusClientService prometheusClientService;
     private final Map<String, Experiment> experimentStore = new ConcurrentHashMap<>();
     private final ExecutorService executor = Executors.newCachedThreadPool();
 
     private volatile String activeExperimentId = null;
 
-    public ExperimentLifecycleService(KubernetesOrchestratorService kubernetesService) {
+    public ExperimentLifecycleService(
+            KubernetesOrchestratorService kubernetesService,
+            PrometheusClientService prometheusClientService) {
         this.kubernetesService = kubernetesService;
+        this.prometheusClientService = prometheusClientService;
     }
 
     /**
@@ -190,6 +195,7 @@ public class ExperimentLifecycleService {
      */
     public DashboardLiveResponse getLiveDashboard() {
         DashboardLiveResponse resp = new DashboardLiveResponse();
+        Integer sloLatency = 200;
         if (activeExperimentId != null) {
             Experiment active = experimentStore.get(activeExperimentId);
             if (active != null) {
@@ -197,6 +203,7 @@ public class ExperimentLifecycleService {
                 resp.setStatus(active.getStatus());
                 resp.setScenario(active.getScenario());
                 resp.setAutoscalingMode(active.getAutoscalingMode());
+                sloLatency = active.getSloLatencyMs();
             }
         } else {
             resp.setStatus(ExperimentStatus.IDLE);
@@ -206,7 +213,18 @@ public class ExperimentLifecycleService {
         resp.setCurrentReplicas(readyReplicas);
         resp.setDesiredReplicas(readyReplicas);
 
-        return resp;
+        // Fetch real-time live telemetry from Prometheus
+        return prometheusClientService.populateLiveMetrics(resp, sloLatency);
+    }
+
+    /**
+     * Returns time-series range history for dashboard chart streaming.
+     */
+    public LiveMetricsHistoryResponse getLiveHistory(int windowSeconds, String step) {
+        int window = (windowSeconds > 0) ? windowSeconds : 300;
+        Instant end = Instant.now();
+        Instant start = end.minusSeconds(window);
+        return prometheusClientService.fetchHistory(start, end, step);
     }
 
     /**
