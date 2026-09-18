@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: workload-service
+  labels:
+    app: workload-service
+    app.kubernetes.io/name: workload-service
+    app.kubernetes.io/part-of: predictive-kubernetes-autoscaling
+spec:
+  type: ClusterIP
+  selector:
+    app: workload-service
+  ports:
+    - name: http
+      port: 8084
+      targetPort: 8084
+      protocol: TCP
