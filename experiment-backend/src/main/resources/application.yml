@@ -1,0 +1,31 @@
+server:
+  port: 8080
+  shutdown: graceful
+
+spring:
+  application:
+    name: experiment-backend
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+app:
+  kubernetes:
+    namespace: autoscaling-experiment
+    workload-deployment: workload-service
+    workload-service: workload-service
+    k6-configmap: k6-workload-scripts
+  prometheus:
+    url: ${PROMETHEUS_URL:http://prometheus-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090}
+    connect-timeout-ms: 5000
+    read-timeout-ms: 5000
+  forecasting:
+    url: ${FORECASTING_URL:http://forecasting-service:8000}
