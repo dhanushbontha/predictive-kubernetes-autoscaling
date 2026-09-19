@@ -65,9 +65,9 @@ export default function MetricsOverview({ currentMetrics }) {
       badgeClass: sloViolationRate > 0 ? 'badge-rose' : 'badge-emerald',
     },
     {
-      title: 'Prophet Error (MAE / RMSE)',
+      title: 'Prophet Accuracy',
       value: `MAE ${mae.toFixed(2)} · RMSE ${rmse.toFixed(2)}`,
-      subtext: `Model Residual Accuracy | MAE: ${mae.toFixed(2)}, RMSE: ${rmse.toFixed(2)}`,
+      subtext: 'In-sample residual error across 15m window',
       icon: TrendingUp,
       accent: '#06b6d4',
       badgeText: 'ONLINE',
