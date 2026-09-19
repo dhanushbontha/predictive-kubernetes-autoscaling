@@ -5,28 +5,32 @@ import com.autoscaling.backend.dto.DashboardLiveResponse;
 import com.autoscaling.backend.dto.ExperimentResponse;
 import com.autoscaling.backend.dto.LiveMetricsHistoryResponse;
 import com.autoscaling.backend.dto.StartExperimentRequest;
+import com.autoscaling.backend.entity.ExperimentEntity;
 import com.autoscaling.backend.model.AutoscalingMode;
 import com.autoscaling.backend.model.Experiment;
 import com.autoscaling.backend.model.ExperimentResult;
 import com.autoscaling.backend.model.ExperimentStatus;
 import com.autoscaling.backend.model.ScalingEvent;
 import com.autoscaling.backend.model.WorkloadScenario;
+import com.autoscaling.backend.repository.ExperimentRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Service managing experiment state machine, lifecycle automation, and comparative data collation.
+ * Service managing experiment state machine, lifecycle automation, and PostgreSQL persistence.
  */
 @Service
 public class ExperimentLifecycleService {
@@ -35,6 +39,7 @@ public class ExperimentLifecycleService {
 
     private final KubernetesOrchestratorService kubernetesService;
     private final PrometheusClientService prometheusClientService;
+    private final ExperimentRepository experimentRepository;
     private final Map<String, Experiment> experimentStore = new ConcurrentHashMap<>();
     private final ExecutorService executor = Executors.newCachedThreadPool();
 
@@ -42,14 +47,17 @@ public class ExperimentLifecycleService {
 
     public ExperimentLifecycleService(
             KubernetesOrchestratorService kubernetesService,
-            PrometheusClientService prometheusClientService) {
+            PrometheusClientService prometheusClientService,
+            ExperimentRepository experimentRepository) {
         this.kubernetesService = kubernetesService;
         this.prometheusClientService = prometheusClientService;
+        this.experimentRepository = experimentRepository;
     }
 
     /**
-     * Initiates and runs an automated experiment.
+     * Initiates, persists, and runs an automated experiment.
      */
+    @Transactional
     public synchronized ExperimentResponse startExperiment(StartExperimentRequest request) {
         if (activeExperimentId != null) {
             Experiment active = experimentStore.get(activeExperimentId);
@@ -75,6 +83,13 @@ public class ExperimentLifecycleService {
 
         experimentStore.put(experimentId, experiment);
         this.activeExperimentId = experimentId;
+
+        // Persist to PostgreSQL database
+        try {
+            experimentRepository.save(ExperimentEntity.fromDomain(experiment));
+        } catch (Exception ex) {
+            log.warn("Database persistence note: {}", ex.getMessage());
+        }
 
         log.info("Starting experiment [{}] with scenario={}, mode={}, RPS={}, duration={}s",
                 experimentId, request.getScenario(), request.getAutoscalingMode(), request.getTargetRps(), request.getDurationSeconds());
@@ -110,6 +125,7 @@ public class ExperimentLifecycleService {
             // Step 6: Mark RUNNING
             exp.setStatus(ExperimentStatus.RUNNING);
             exp.setStartTime(Instant.now());
+            saveExperimentSafely(exp);
 
             // Step 7: Dispatch in-cluster k6 load generation Job
             kubernetesService.dispatchK6Job(null, expId, exp.getScenario(), exp.getTargetRps(), exp.getDurationSeconds());
@@ -121,6 +137,7 @@ public class ExperimentLifecycleService {
             while (System.currentTimeMillis() < endTimeMs) {
                 if (exp.getStatus() == ExperimentStatus.STOPPED) {
                     log.info("Experiment [{}] was stopped manually.", expId);
+                    saveExperimentSafely(exp);
                     return;
                 }
                 if (kubernetesService.isJobCompleted(null, expId)) {
@@ -135,21 +152,32 @@ public class ExperimentLifecycleService {
             exp.setResult(result);
             exp.setEndTime(Instant.now());
             exp.setStatus(ExperimentStatus.COMPLETED);
+            saveExperimentSafely(exp);
 
-            log.info("Experiment [{}] COMPLETED successfully.", expId);
+            log.info("Experiment [{}] COMPLETED and persisted successfully.", expId);
 
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             exp.setStatus(ExperimentStatus.FAILED);
             exp.setErrorMessage("Experiment execution was interrupted: " + ex.getMessage());
+            saveExperimentSafely(exp);
         } catch (Exception ex) {
             log.error("Experiment [{}] failed during lifecycle: {}", expId, ex.getMessage(), ex);
             exp.setStatus(ExperimentStatus.FAILED);
             exp.setErrorMessage(ex.getMessage());
+            saveExperimentSafely(exp);
         } finally {
             if (activeExperimentId != null && activeExperimentId.equals(expId)) {
                 activeExperimentId = null;
             }
+        }
+    }
+
+    private void saveExperimentSafely(Experiment exp) {
+        try {
+            experimentRepository.save(ExperimentEntity.fromDomain(exp));
+        } catch (Exception ex) {
+            log.warn("Database persist warning for experiment {}: {}", exp.getId(), ex.getMessage());
         }
     }
 
@@ -159,7 +187,12 @@ public class ExperimentLifecycleService {
     public synchronized ExperimentResponse stopExperiment(String experimentId) {
         Experiment exp = experimentStore.get(experimentId);
         if (exp == null) {
-            throw new IllegalArgumentException("Experiment not found: " + experimentId);
+            Optional<ExperimentEntity> dbOpt = experimentRepository.findById(experimentId);
+            if (dbOpt.isPresent()) {
+                exp = dbOpt.get().toDomain();
+            } else {
+                throw new IllegalArgumentException("Experiment not found: " + experimentId);
+            }
         }
 
         if (exp.getStatus() == ExperimentStatus.RUNNING || exp.getStatus() == ExperimentStatus.STARTING) {
@@ -167,6 +200,7 @@ public class ExperimentLifecycleService {
             exp.setStatus(ExperimentStatus.STOPPED);
             exp.setEndTime(Instant.now());
             kubernetesService.cleanPreviousK6Jobs(null);
+            saveExperimentSafely(exp);
             if (activeExperimentId != null && activeExperimentId.equals(experimentId)) {
                 activeExperimentId = null;
             }
@@ -177,12 +211,29 @@ public class ExperimentLifecycleService {
     public ExperimentResponse getExperiment(String id) {
         Experiment exp = experimentStore.get(id);
         if (exp == null) {
+            Optional<ExperimentEntity> dbOpt = experimentRepository.findById(id);
+            if (dbOpt.isPresent()) {
+                return ExperimentResponse.fromDomain(dbOpt.get().toDomain());
+            }
             throw new IllegalArgumentException("Experiment not found with ID: " + id);
         }
         return ExperimentResponse.fromDomain(exp);
     }
 
     public List<ExperimentResponse> listExperiments() {
+        try {
+            List<ExperimentEntity> dbList = experimentRepository.findAllByOrderByStartTimeDesc();
+            if (dbList != null && !dbList.isEmpty()) {
+                List<ExperimentResponse> list = new ArrayList<>();
+                for (ExperimentEntity entity : dbList) {
+                    list.add(ExperimentResponse.fromDomain(entity.toDomain()));
+                }
+                return list;
+            }
+        } catch (Exception ex) {
+            log.warn("Querying repository failed, falling back to memory store: {}", ex.getMessage());
+        }
+
         List<ExperimentResponse> list = new ArrayList<>();
         for (Experiment exp : experimentStore.values()) {
             list.add(ExperimentResponse.fromDomain(exp));
@@ -231,8 +282,8 @@ public class ExperimentLifecycleService {
      * Returns paired comparative metrics between reactive HPA and predictive Prophet + KEDA runs.
      */
     public ComparisonResponse compareExperiments(String hpaExperimentId, String kedaExperimentId) {
-        Experiment hpaExp = (hpaExperimentId != null) ? experimentStore.get(hpaExperimentId) : null;
-        Experiment kedaExp = (kedaExperimentId != null) ? experimentStore.get(kedaExperimentId) : null;
+        Experiment hpaExp = findExperimentOrNull(hpaExperimentId);
+        Experiment kedaExp = findExperimentOrNull(kedaExperimentId);
 
         WorkloadScenario scenario = (hpaExp != null) ? hpaExp.getScenario() : (kedaExp != null ? kedaExp.getScenario() : null);
 
@@ -241,6 +292,18 @@ public class ExperimentLifecycleService {
                 ExperimentResponse.fromDomain(hpaExp),
                 ExperimentResponse.fromDomain(kedaExp)
         );
+    }
+
+    private Experiment findExperimentOrNull(String id) {
+        if (id == null || id.isBlank()) return null;
+        Experiment exp = experimentStore.get(id);
+        if (exp == null) {
+            Optional<ExperimentEntity> dbOpt = experimentRepository.findById(id);
+            if (dbOpt.isPresent()) {
+                return dbOpt.get().toDomain();
+            }
+        }
+        return exp;
     }
 
     /**
