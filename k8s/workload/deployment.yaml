@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: workload-service
+  namespace: autoscaling-experiment
   labels:
     app: workload-service
     app.kubernetes.io/name: workload-service
@@ -40,19 +41,19 @@ spec:
               memory: 512Mi
           readinessProbe:
             httpGet:
-              path: /actuator/health/readiness
+              path: /actuator/health
               port: 8084
-            initialDelaySeconds: 10
+            initialDelaySeconds: 25
             periodSeconds: 5
-            timeoutSeconds: 2
+            timeoutSeconds: 4
             failureThreshold: 3
           livenessProbe:
             httpGet:
-              path: /actuator/health/liveness
+              path: /actuator/health
               port: 8084
-            initialDelaySeconds: 15
+            initialDelaySeconds: 35
             periodSeconds: 10
-            timeoutSeconds: 2
+            timeoutSeconds: 4
             failureThreshold: 3
           env:
             - name: WORKLOAD_DEFAULT_ITERATIONS
