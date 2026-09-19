@@ -1,0 +1,23 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: forecasting-service-monitor
+  namespace: autoscaling-experiment
+  labels:
+    app: forecasting-service
+    release: prometheus
+    app.kubernetes.io/name: forecasting-service
+    app.kubernetes.io/part-of: predictive-kubernetes-autoscaling
+spec:
+  selector:
+    matchLabels:
+      app: forecasting-service
+  endpoints:
+    - port: http-metrics
+      path: /metrics
+      interval: 5s
+      scrapeTimeout: 4s
+      metricRelabelings:
+        - sourceLabels: [__name__]
+          regex: "(predicted_workload_requests_per_second|forecast_.*)"
+          action: keep
