@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: forecasting-service
+  namespace: autoscaling-experiment
+  labels:
+    app: forecasting-service
+    tier: forecasting
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: forecasting-service
+  template:
+    metadata:
+      labels:
+        app: forecasting-service
+        tier: forecasting
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: forecasting-service
+          image: predictive-k8s/forecasting-service:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http-metrics
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: PROMETHEUS_URL
+              value: "http://prometheus-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090"
+            - name: WORKLOAD_METRIC_QUERY
+              value: 'sum(rate(http_server_requests_seconds_count{uri="/api/workload"}[1m]))'
+            - name: SCRAPE_LOOKBACK_MINUTES
+              value: "15"
+            - name: SCRAPE_STEP_SECONDS
+              value: "5"
+            - name: TRAINING_INTERVAL_SECONDS
+              value: "30"
+            - name: FORECAST_HORIZON_SECONDS
+              value: "60"
+            - name: LOG_LEVEL
+              value: "INFO"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
