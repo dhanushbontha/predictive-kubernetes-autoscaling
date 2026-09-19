@@ -16,6 +16,7 @@ spring:
       connection-timeout: 3000
       maximum-pool-size: 10
   jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
     open-in-view: false
