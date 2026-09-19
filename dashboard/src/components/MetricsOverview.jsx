@@ -65,9 +65,9 @@ export default function MetricsOverview({ currentMetrics }) {
       badgeClass: sloViolationRate > 0 ? 'badge-rose' : 'badge-emerald',
     },
     {
-      title: 'Prophet Accuracy',
-      value: `MAE: ${mae.toFixed(2)}`,
-      subtext: `RMSE: ${rmse.toFixed(2)} residuals`,
+      title: 'Prophet Error (MAE / RMSE)',
+      value: `MAE ${mae.toFixed(2)} · RMSE ${rmse.toFixed(2)}`,
+      subtext: `Model Residual Accuracy | MAE: ${mae.toFixed(2)}, RMSE: ${rmse.toFixed(2)}`,
       icon: TrendingUp,
       accent: '#06b6d4',
       badgeText: 'ONLINE',
@@ -106,8 +106,8 @@ export default function MetricsOverview({ currentMetrics }) {
             </div>
 
             {/* Metric Value */}
-            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.35rem' }}>
-              <span className="stat-mono" style={{ fontSize: '1.45rem', fontWeight: 700, color: '#ffffff' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
+              <span className="stat-mono" style={{ fontSize: card.value.length > 12 ? '1.1rem' : '1.45rem', fontWeight: 700, color: '#ffffff' }}>
                 {card.value}
               </span>
               <span className={`badge ${card.badgeClass}`}>
