@@ -50,6 +50,18 @@ public class ExperimentController {
     }
 
     /**
+     * Retrieves currently active/running experiment if any.
+     */
+    @GetMapping("/active")
+    public ResponseEntity<ExperimentResponse> getActiveExperiment() {
+        ExperimentResponse active = lifecycleService.getActiveExperiment();
+        if (active != null) {
+            return ResponseEntity.ok(active);
+        }
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
      * Retrieves experiment metadata and aggregated results by ID.
      */
     @GetMapping("/{id}")

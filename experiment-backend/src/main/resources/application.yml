@@ -8,7 +8,7 @@ spring:
   lifecycle:
     timeout-per-shutdown-phase: 20s
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres.autoscaling-experiment.svc.cluster.local:5432/autoscaling_db}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/autoscaling_db}
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver

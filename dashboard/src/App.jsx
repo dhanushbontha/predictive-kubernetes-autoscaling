@@ -6,11 +6,12 @@ import ExperimentLauncher from './components/ExperimentLauncher';
 import TelemetryCharts from './components/TelemetryCharts';
 import ClusterStatus from './components/ClusterStatus';
 import ExperimentHistory from './components/ExperimentHistory';
-import { checkHealth, getActiveExperiment, startExperiment, stopExperiment, getLiveSeries } from './services/api';
+import { checkHealth, getActiveExperiment, startExperiment, stopExperiment, getLiveSeries, getExperimentHistory, getLiveTelemetry } from './services/api';
 
 export default function App() {
   const [backendHealth, setBackendHealth] = useState(null);
   const [activeExp, setActiveExp] = useState(null);
+  const [experimentHistory, setExperimentHistory] = useState([]);
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -32,13 +33,18 @@ export default function App() {
   const refreshState = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const [health, exp] = await Promise.all([
+      const [health, exp, historyList, liveData] = await Promise.all([
         checkHealth(),
         getActiveExperiment(),
+        getExperimentHistory(),
+        getLiveTelemetry(),
       ]);
 
       setBackendHealth(health);
       setActiveExp(exp);
+      if (historyList && Array.isArray(historyList) && historyList.length > 0) {
+        setExperimentHistory(historyList);
+      }
 
       // Try fetching real time series from backend
       const rawCpu = await getLiveSeries('CPU_USAGE', 120);
@@ -221,7 +227,7 @@ export default function App() {
       />
 
       {/* 7. Historical PostgreSQL Benchmark Results */}
-      <ExperimentHistory />
+      <ExperimentHistory history={experimentHistory} />
 
       {/* Footer */}
       <footer style={{

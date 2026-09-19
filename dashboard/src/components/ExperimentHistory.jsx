@@ -1,5 +1,5 @@
 import React from 'react';
-import { Database, CheckCircle2, XCircle, ArrowUpRight, Scale } from 'lucide-react';
+import { Database, CheckCircle2, XCircle, Clock, AlertCircle, RefreshCw, Layers } from 'lucide-react';
 
 export default function ExperimentHistory({ history = [] }) {
   const defaultHistory = [
@@ -7,31 +7,35 @@ export default function ExperimentHistory({ history = [] }) {
       id: '3e215511',
       name: 'bursty-hpa-benchmark',
       scenario: 'BURSTY',
-      mode: 'REACTIVE_HPA',
+      autoscalingMode: 'REACTIVE_HPA',
       targetRps: 150,
-      duration: '60s',
-      p95Latency: '248.5 ms',
-      sloViolations: '14.2%',
-      peakReplicas: 4,
-      avgCpu: '68.4%',
+      durationSeconds: 60,
       status: 'COMPLETED',
+      result: {
+        p95LatencyMs: 248.5,
+        sloViolationRate: 0.142,
+        peakReplicas: 4,
+        avgCpuPercent: 68.4,
+      },
     },
     {
       id: '8f419b22',
       name: 'bursty-keda-predictive',
       scenario: 'BURSTY',
-      mode: 'PREDICTIVE_PROPHET_KEDA',
+      autoscalingMode: 'PREDICTIVE_PROPHET_KEDA',
       targetRps: 150,
-      duration: '60s',
-      p95Latency: '82.1 ms',
-      sloViolations: '0.8%',
-      peakReplicas: 5,
-      avgCpu: '44.2%',
+      durationSeconds: 60,
       status: 'COMPLETED',
+      result: {
+        p95LatencyMs: 82.1,
+        sloViolationRate: 0.008,
+        peakReplicas: 5,
+        avgCpuPercent: 44.2,
+      },
     },
   ];
 
-  const items = history && history.length > 0 ? history : defaultHistory;
+  const rawItems = history && history.length > 0 ? history : defaultHistory;
 
   return (
     <div className="glass-panel" style={{ padding: '1.25rem', marginBottom: '1.5rem' }}>
@@ -40,7 +44,12 @@ export default function ExperimentHistory({ history = [] }) {
           <Database size={18} color="#8b5cf6" />
           <h3 style={{ fontSize: '0.95rem' }}>PostgreSQL Experiment Records & Benchmark Comparison</h3>
         </div>
-        <span className="badge badge-violet">PERSISTED RESULTS</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span className="badge badge-violet">PERSISTED RESULTS</span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+            ({rawItems.length} runs)
+          </span>
+        </div>
       </div>
 
       <div style={{ overflowX: 'auto' }}>
@@ -59,12 +68,44 @@ export default function ExperimentHistory({ history = [] }) {
             </tr>
           </thead>
           <tbody>
-            {items.map((item, idx) => {
-              const isPredictive = item.mode?.includes('PREDICTIVE');
+            {rawItems.map((item, idx) => {
+              const modeStr = item.autoscalingMode || item.mode || '';
+              const isPredictive = modeStr.includes('PREDICTIVE');
+              
+              const p95Val = item.result?.p95LatencyMs != null
+                ? `${item.result.p95LatencyMs.toFixed(1)} ms`
+                : (item.p95Latency || '—');
+              
+              const p95Num = item.result?.p95LatencyMs ?? parseFloat(item.p95Latency ?? 0);
+
+              const sloVal = item.result?.sloViolationRate != null
+                ? `${(item.result.sloViolationRate * 100).toFixed(1)}%`
+                : (item.sloViolations != null ? `${item.sloViolations}` : '—');
+              
+              const sloNum = item.result?.sloViolationRate != null
+                ? (item.result.sloViolationRate * 100)
+                : parseFloat(item.sloViolations ?? 0);
+
+              const peakReps = item.result?.peakReplicas != null
+                ? `${item.result.peakReplicas} Pods`
+                : (item.peakReplicas ? `${item.peakReplicas} Pods` : '—');
+
+              const avgCpu = item.result?.avgCpuPercent != null
+                ? `${item.result.avgCpuPercent.toFixed(1)}%`
+                : (item.avgCpu ? `${item.avgCpu}` : '—');
+
+              const status = item.status || 'UNKNOWN';
+
+              let statusBadgeClass = 'badge-emerald';
+              if (status === 'RUNNING') statusBadgeClass = 'badge-cyan animate-pulse';
+              else if (status === 'STARTING') statusBadgeClass = 'badge-amber animate-pulse';
+              else if (status === 'FAILED') statusBadgeClass = 'badge-rose';
+              else if (status === 'STOPPED') statusBadgeClass = 'badge-zinc';
+
               return (
-                <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: 'background 0.2s ease' }}>
+                <tr key={item.id || idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: 'background 0.2s ease' }}>
                   <td style={{ padding: '0.6rem 0.75rem', fontFamily: 'var(--font-mono)', color: '#ffffff' }}>
-                    {item.id || item.name}
+                    {item.id ? item.id.substring(0, 8) : item.name}
                   </td>
                   <td style={{ padding: '0.6rem 0.75rem' }}>
                     <span className="badge badge-violet" style={{ fontSize: '0.7rem' }}>
@@ -82,28 +123,28 @@ export default function ExperimentHistory({ history = [] }) {
                   <td style={{
                     padding: '0.6rem 0.75rem',
                     fontFamily: 'var(--font-mono)',
-                    color: parseFloat(item.p95Latency) > 200 ? '#f43f5e' : '#34d399',
+                    color: p95Num > 200 ? '#f43f5e' : (p95Val === '—' ? 'var(--text-secondary)' : '#34d399'),
                     fontWeight: 600,
                   }}>
-                    {item.p95Latency}
+                    {p95Val}
                   </td>
                   <td style={{
                     padding: '0.6rem 0.75rem',
                     fontFamily: 'var(--font-mono)',
-                    color: parseFloat(item.sloViolations) > 5 ? '#f43f5e' : '#10b981',
+                    color: sloNum > 5 ? '#f43f5e' : (sloVal === '—' ? 'var(--text-secondary)' : '#10b981'),
                     fontWeight: 600,
                   }}>
-                    {item.sloViolations}
+                    {sloVal}
                   </td>
                   <td style={{ padding: '0.6rem 0.75rem', fontFamily: 'var(--font-mono)', color: '#06b6d4' }}>
-                    {item.peakReplicas} Pods
+                    {peakReps}
                   </td>
                   <td style={{ padding: '0.6rem 0.75rem', fontFamily: 'var(--font-mono)' }}>
-                    {item.avgCpu}
+                    {avgCpu}
                   </td>
                   <td style={{ padding: '0.6rem 0.75rem' }}>
-                    <span className="badge badge-emerald" style={{ fontSize: '0.7rem' }}>
-                      {item.status}
+                    <span className={`badge ${statusBadgeClass}`} style={{ fontSize: '0.7rem' }}>
+                      {status}
                     </span>
                   </td>
                 </tr>

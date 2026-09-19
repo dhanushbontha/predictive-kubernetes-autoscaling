@@ -208,6 +208,16 @@ public class ExperimentLifecycleService {
         return ExperimentResponse.fromDomain(exp);
     }
 
+    public ExperimentResponse getActiveExperiment() {
+        if (activeExperimentId != null) {
+            Experiment exp = experimentStore.get(activeExperimentId);
+            if (exp != null) {
+                return ExperimentResponse.fromDomain(exp);
+            }
+        }
+        return null;
+    }
+
     public ExperimentResponse getExperiment(String id) {
         Experiment exp = experimentStore.get(id);
         if (exp == null) {

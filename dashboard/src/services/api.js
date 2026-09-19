@@ -52,4 +52,24 @@ export const getLiveSeries = async (metric, durationSeconds = 300) => {
   }
 };
 
+export const getLiveTelemetry = async () => {
+  try {
+    const res = await api.get('/api/dashboard/live');
+    return res.data;
+  } catch (err) {
+    console.warn('Failed to fetch live telemetry:', err.message);
+    return null;
+  }
+};
+
+export const getExperimentHistory = async () => {
+  try {
+    const res = await api.get('/api/experiments');
+    return res.data || [];
+  } catch (err) {
+    console.warn('Failed to fetch experiment history:', err.message);
+    return [];
+  }
+};
+
 export default api;

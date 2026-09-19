@@ -45,16 +45,16 @@ spec:
               port: 8084
             initialDelaySeconds: 25
             periodSeconds: 5
-            timeoutSeconds: 4
-            failureThreshold: 3
+            timeoutSeconds: 5
+            failureThreshold: 5
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: 8084
             initialDelaySeconds: 35
             periodSeconds: 10
-            timeoutSeconds: 4
-            failureThreshold: 3
+            timeoutSeconds: 5
+            failureThreshold: 5
           env:
             - name: WORKLOAD_DEFAULT_ITERATIONS
-              value: "10000000"
+              value: "100000"
