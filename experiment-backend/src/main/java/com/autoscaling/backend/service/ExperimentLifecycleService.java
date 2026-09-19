@@ -235,8 +235,24 @@ public class ExperimentLifecycleService {
             List<ExperimentEntity> dbList = experimentRepository.findAllByOrderByStartTimeDesc();
             if (dbList != null && !dbList.isEmpty()) {
                 List<ExperimentResponse> list = new ArrayList<>();
+                Instant now = Instant.now();
                 for (ExperimentEntity entity : dbList) {
-                    list.add(ExperimentResponse.fromDomain(entity.toDomain()));
+                    Experiment exp = entity.toDomain();
+                    // Auto-reconcile if experiment duration has elapsed and it's no longer running in active memory
+                    if ((exp.getStatus() == ExperimentStatus.RUNNING || exp.getStatus() == ExperimentStatus.STARTING)) {
+                        int dur = exp.getDurationSeconds() != null ? exp.getDurationSeconds() : 120;
+                        Instant expiry = (exp.getStartTime() != null) ? exp.getStartTime().plusSeconds(dur + 10L) : now;
+                        boolean isActiveMemory = exp.getId().equals(activeExperimentId);
+                        if (!isActiveMemory || now.isAfter(expiry)) {
+                            exp.setStatus(ExperimentStatus.COMPLETED);
+                            exp.setEndTime(exp.getStartTime() != null ? exp.getStartTime().plusSeconds(dur) : now);
+                            if (exp.getResult() == null) {
+                                exp.setResult(calculateExperimentResults(exp));
+                            }
+                            saveExperimentSafely(exp);
+                        }
+                    }
+                    list.add(ExperimentResponse.fromDomain(exp));
                 }
                 return list;
             }

@@ -39,22 +39,28 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8084
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 30
           readinessProbe:
             httpGet:
               path: /actuator/health
               port: 8084
-            initialDelaySeconds: 25
             periodSeconds: 5
-            timeoutSeconds: 5
-            failureThreshold: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /actuator/health
               port: 8084
-            initialDelaySeconds: 35
             periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
           env:
             - name: WORKLOAD_DEFAULT_ITERATIONS
               value: "100000"
