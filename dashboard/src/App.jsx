@@ -6,7 +6,7 @@ import MetricsOverview from './components/MetricsOverview';
 import ExperimentLauncher from './components/ExperimentLauncher';
 import TelemetryCharts from './components/TelemetryCharts';
 import ClusterStatus from './components/ClusterStatus';
-import ExperimentHistory from './components/ExperimentHistory';
+import HistoryView from './components/HistoryView';
 import ComparisonView from './components/ComparisonView';
 import { checkHealth, getActiveExperiment, startExperiment, stopExperiment, getLiveSeries, getExperimentHistory, getLiveTelemetry } from './services/api';
 
@@ -313,9 +313,9 @@ export default function App() {
         <ComparisonView history={experimentHistory} />
       )}
 
-      {/* Tab 3: Historical Database Table */}
+      {/* Tab 3: Historical Database Table & Audit Trail Explorer (Phase 14) */}
       {activeTab === 'history' && (
-        <ExperimentHistory history={experimentHistory} />
+        <HistoryView history={experimentHistory} onRefresh={refreshState} />
       )}
 
       {/* Footer */}
@@ -329,7 +329,7 @@ export default function App() {
       }}>
         <p>Predictive Kubernetes Autoscaling — Benchmarking Meta Prophet + KEDA vs Reactive HPA</p>
         <p style={{ marginTop: '0.25rem', color: 'var(--text-secondary)' }}>
-          Final-Year Engineering Project Experimental Platform · Phase 12 Complete
+          Final-Year Engineering Project Experimental Platform · Phase 14 Complete
         </p>
       </footer>
 

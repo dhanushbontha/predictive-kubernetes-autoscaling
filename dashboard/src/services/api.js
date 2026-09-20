@@ -85,4 +85,16 @@ export const getComparison = async (hpaId, kedaId) => {
   }
 };
 
+export const getBenchmarkMatrixSummary = async () => {
+  try {
+    const res = await api.get('/api/experiments/matrix/summary');
+    return res.data;
+  } catch (err) {
+    console.warn('Failed to fetch matrix summary:', err.message);
+    return null;
+  }
+};
+
+export const downloadMatrixCsvUrl = '/api/experiments/matrix/summary.csv';
+
 export default api;
