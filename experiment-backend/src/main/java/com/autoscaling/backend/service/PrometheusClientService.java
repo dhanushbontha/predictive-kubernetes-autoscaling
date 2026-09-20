@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -46,8 +47,12 @@ public class PrometheusClientService {
             ObjectMapper objectMapper) {
         this.prometheusBaseUrl = prometheusBaseUrl;
         this.objectMapper = objectMapper;
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(300);
+        requestFactory.setReadTimeout(500);
         this.restClient = RestClient.builder()
                 .baseUrl(prometheusBaseUrl)
+                .requestFactory(requestFactory)
                 .build();
         log.info("Initialized Prometheus Client targeting base URL: {}", prometheusBaseUrl);
     }

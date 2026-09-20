@@ -61,7 +61,10 @@ public class KubernetesOrchestratorService {
     public KubernetesOrchestratorService() {
         KubernetesClient client;
         try {
-            Config config = new ConfigBuilder().build();
+            Config config = new ConfigBuilder()
+                    .withConnectionTimeout(1000)
+                    .withRequestTimeout(1000)
+                    .build();
             client = new KubernetesClientBuilder().withConfig(config).build();
             log.info("Initialized Fabric8 Kubernetes Client successfully for master: {}", client.getMasterUrl());
         } catch (Exception ex) {
@@ -93,17 +96,24 @@ public class KubernetesOrchestratorService {
     }
 
     /**
-     * Queries active ready pod count for workload-service.
+     * Queries active ready pod count for workload-service with fast non-blocking timeout.
      */
     public int getWorkloadReadyReplicas(String namespace) {
         String ns = resolveNamespace(namespace);
         try {
-            Deployment dep = kubernetesClient.apps().deployments().inNamespace(ns).withName(workloadDeploymentName).get();
-            if (dep != null && dep.getStatus() != null && dep.getStatus().getReadyReplicas() != null) {
-                return dep.getStatus().getReadyReplicas();
-            }
+            return java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                try {
+                    Deployment dep = kubernetesClient.apps().deployments().inNamespace(ns).withName(workloadDeploymentName).get();
+                    if (dep != null && dep.getStatus() != null && dep.getStatus().getReadyReplicas() != null) {
+                        return dep.getStatus().getReadyReplicas();
+                    }
+                } catch (Exception ex) {
+                    // ignore
+                }
+                return 1;
+            }).get(400, java.util.concurrent.TimeUnit.MILLISECONDS);
         } catch (Exception ex) {
-            log.warn("Error getting ready replicas for {}: {}", workloadDeploymentName, ex.getMessage());
+            // Cluster unavailable or timeout
         }
         return 1;
     }
