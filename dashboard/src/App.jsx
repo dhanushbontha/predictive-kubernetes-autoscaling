@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Activity, Scale, Database, Sparkles } from 'lucide-react';
 import Header from './components/Header';
 import ActiveExperimentBanner from './components/ActiveExperimentBanner';
 import MetricsOverview from './components/MetricsOverview';
@@ -6,9 +7,11 @@ import ExperimentLauncher from './components/ExperimentLauncher';
 import TelemetryCharts from './components/TelemetryCharts';
 import ClusterStatus from './components/ClusterStatus';
 import ExperimentHistory from './components/ExperimentHistory';
+import ComparisonView from './components/ComparisonView';
 import { checkHealth, getActiveExperiment, startExperiment, stopExperiment, getLiveSeries, getExperimentHistory, getLiveTelemetry } from './services/api';
 
 export default function App() {
+  const [activeTab, setActiveTab] = useState('live'); // 'live' | 'comparison' | 'history'
   const [backendHealth, setBackendHealth] = useState(null);
   const [activeExp, setActiveExp] = useState(null);
   const [experimentHistory, setExperimentHistory] = useState([]);
@@ -204,30 +207,116 @@ export default function App() {
         isStopping={isStopping}
       />
 
-      {/* 3. Live KPI Metrics Overview */}
-      <MetricsOverview
-        currentMetrics={currentMetrics}
-      />
+      {/* Top Tab Navigation Bar */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        background: 'rgba(15, 23, 42, 0.65)',
+        backdropFilter: 'blur(12px)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: '0.75rem',
+        padding: '0.4rem',
+        marginBottom: '1.5rem',
+      }}>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button
+            onClick={() => setActiveTab('live')}
+            className={`btn ${activeTab === 'live' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{
+              padding: '0.6rem 1.25rem',
+              fontSize: '0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              borderRadius: '0.5rem',
+              border: activeTab === 'live' ? '1px solid #06b6d4' : 'transparent',
+            }}
+          >
+            <Activity size={16} color={activeTab === 'live' ? '#06b6d4' : 'currentColor'} />
+            <span>Live Monitor & Telemetry</span>
+          </button>
 
-      {/* 4. Live Telemetry Charts Grid */}
-      <TelemetryCharts
-        timeSeriesData={timeSeriesData}
-      />
+          <button
+            onClick={() => setActiveTab('comparison')}
+            className={`btn ${activeTab === 'comparison' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{
+              padding: '0.6rem 1.25rem',
+              fontSize: '0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              borderRadius: '0.5rem',
+              border: activeTab === 'comparison' ? '1px solid #8b5cf6' : 'transparent',
+              position: 'relative'
+            }}
+          >
+            <Scale size={16} color={activeTab === 'comparison' ? '#8b5cf6' : 'currentColor'} />
+            <span>Benchmark Comparison</span>
+            <span className="badge badge-violet" style={{ fontSize: '0.65rem', padding: '0.15rem 0.4rem', marginLeft: '4px' }}>
+              PHASE 12
+            </span>
+          </button>
 
-      {/* 5. Experiment Launcher & Scenario Controller */}
-      <ExperimentLauncher
-        onStartExperiment={handleStartExperiment}
-        isStarting={isStarting}
-        activeExp={activeExp}
-      />
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`btn ${activeTab === 'history' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{
+              padding: '0.6rem 1.25rem',
+              fontSize: '0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              borderRadius: '0.5rem',
+              border: activeTab === 'history' ? '1px solid #10b981' : 'transparent',
+            }}
+          >
+            <Database size={16} color={activeTab === 'history' ? '#10b981' : 'currentColor'} />
+            <span>Historical Database</span>
+            <span style={{ fontSize: '0.75rem', opacity: 0.75 }}>({experimentHistory.length})</span>
+          </button>
+        </div>
 
-      {/* 6. Active Cluster Pods Status */}
-      <ClusterStatus
-        currentReplicas={currentMetrics.currentReplicas}
-      />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingRight: '0.75rem' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+            Autoscaling Mode:
+          </span>
+          <span className="badge badge-cyan" style={{ fontSize: '0.7rem' }}>
+            Meta Prophet + KEDA
+          </span>
+        </div>
+      </div>
 
-      {/* 7. Historical PostgreSQL Benchmark Results */}
-      <ExperimentHistory history={experimentHistory} />
+      {/* Tab 1: Live Monitor & Telemetry */}
+      {activeTab === 'live' && (
+        <>
+          {/* Live KPI Metrics Overview */}
+          <MetricsOverview currentMetrics={currentMetrics} />
+
+          {/* Live Telemetry Charts Grid */}
+          <TelemetryCharts timeSeriesData={timeSeriesData} />
+
+          {/* Experiment Launcher & Scenario Controller */}
+          <ExperimentLauncher
+            onStartExperiment={handleStartExperiment}
+            isStarting={isStarting}
+            activeExp={activeExp}
+          />
+
+          {/* Active Cluster Pods Status */}
+          <ClusterStatus currentReplicas={currentMetrics.currentReplicas} />
+        </>
+      )}
+
+      {/* Tab 2: Side-by-Side Benchmark Comparison (Phase 12) */}
+      {activeTab === 'comparison' && (
+        <ComparisonView history={experimentHistory} />
+      )}
+
+      {/* Tab 3: Historical Database Table */}
+      {activeTab === 'history' && (
+        <ExperimentHistory history={experimentHistory} />
+      )}
 
       {/* Footer */}
       <footer style={{
@@ -240,10 +329,11 @@ export default function App() {
       }}>
         <p>Predictive Kubernetes Autoscaling — Benchmarking Meta Prophet + KEDA vs Reactive HPA</p>
         <p style={{ marginTop: '0.25rem', color: 'var(--text-secondary)' }}>
-          Final-Year Engineering Project Experimental Platform
+          Final-Year Engineering Project Experimental Platform · Phase 12 Complete
         </p>
       </footer>
 
     </div>
   );
 }
+

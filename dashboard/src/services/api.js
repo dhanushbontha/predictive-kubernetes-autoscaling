@@ -72,4 +72,17 @@ export const getExperimentHistory = async () => {
   }
 };
 
+export const getComparison = async (hpaId, kedaId) => {
+  try {
+    const params = {};
+    if (hpaId) params.hpaId = hpaId;
+    if (kedaId) params.kedaId = kedaId;
+    const res = await api.get('/api/dashboard/comparison', { params });
+    return res.data;
+  } catch (err) {
+    console.warn('Failed to fetch benchmark comparison:', err.message);
+    return null;
+  }
+};
+
 export default api;
