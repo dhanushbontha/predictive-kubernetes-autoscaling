@@ -107,31 +107,31 @@ export default function ComparisonView({ history = [] }) {
   // Data for Recharts side-by-side grouped bar chart
   const chartData = [
     {
-      metric: 'P95 Latency (ms)',
+      metric: 'P95 Latency',
       Reactive_HPA: Number(hpa.p95LatencyMs.toFixed(1)),
       Predictive_KEDA: Number(keda.p95LatencyMs.toFixed(1)),
       unit: 'ms',
     },
     {
-      metric: 'P99 Latency (ms)',
+      metric: 'P99 Latency',
       Reactive_HPA: Number(hpa.p99LatencyMs.toFixed(1)),
       Predictive_KEDA: Number(keda.p99LatencyMs.toFixed(1)),
       unit: 'ms',
     },
     {
-      metric: 'SLO Breach Rate (%)',
+      metric: 'SLO Breach %',
       Reactive_HPA: Number((hpa.sloViolationRate * 100).toFixed(1)),
       Predictive_KEDA: Number((keda.sloViolationRate * 100).toFixed(1)),
       unit: '%',
     },
     {
-      metric: 'Scaling Lag (s)',
+      metric: 'Scaling Lag',
       Reactive_HPA: Number(hpa.avgScalingDelaySeconds.toFixed(1)),
       Predictive_KEDA: Number(keda.avgScalingDelaySeconds.toFixed(1)),
       unit: 's',
     },
     {
-      metric: 'Avg CPU Load (%)',
+      metric: 'Avg CPU Load',
       Reactive_HPA: Number(hpa.avgCpuPercent.toFixed(1)),
       Predictive_KEDA: Number(keda.avgCpuPercent.toFixed(1)),
       unit: '%',
@@ -295,9 +295,13 @@ export default function ComparisonView({ history = [] }) {
           </div>
           <div style={{ width: '100%', height: '280px' }}>
             <ResponsiveContainer>
-              <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+              <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="metric" tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} />
+                <XAxis 
+                  dataKey="metric" 
+                  interval={0} 
+                  tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} 
+                />
                 <YAxis tick={{ fill: 'var(--text-secondary)', fontSize: 11 }} />
                 <Tooltip
                   contentStyle={{
@@ -306,6 +310,7 @@ export default function ComparisonView({ history = [] }) {
                     borderRadius: '8px',
                     fontSize: '0.8rem',
                   }}
+                  formatter={(value, name, item) => [`${value} ${item?.payload?.unit || ''}`, name]}
                 />
                 <Legend wrapperStyle={{ fontSize: '0.8rem', paddingTop: '10px' }} />
                 <Bar dataKey="Reactive_HPA" name="Reactive (HPA)" fill="#f43f5e" radius={[4, 4, 0, 0]} />
