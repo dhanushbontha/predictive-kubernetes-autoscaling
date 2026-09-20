@@ -96,6 +96,11 @@ export default function ComparisonView({ history = [] }) {
   const p95Diff = hpa.p95LatencyMs - keda.p95LatencyMs;
   const p95Pct = ((p95Diff / hpa.p95LatencyMs) * 100).toFixed(1);
 
+  const p99Diff = (hpa.p99LatencyMs || 0) - (keda.p99LatencyMs || 0);
+  const p99Pct = hpa.p99LatencyMs > 0
+    ? (((p99Diff / hpa.p99LatencyMs) * 100).toFixed(1))
+    : '0.0';
+
   const sloDiff = (hpa.sloViolationRate * 100) - (keda.sloViolationRate * 100);
   const sloReductionPct = hpa.sloViolationRate > 0
     ? (((hpa.sloViolationRate - keda.sloViolationRate) / hpa.sloViolationRate) * 100).toFixed(1)
@@ -202,23 +207,26 @@ export default function ComparisonView({ history = [] }) {
         gap: '1rem'
       }}>
         
-        {/* Card 1: P95 Latency Delta */}
+        {/* Card 1: P95 & P99 Latency Delta */}
         <div className="glass-panel" style={{ padding: '1.25rem', borderLeft: '4px solid #10b981' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-              P95 Latency Reduction
+              Tail Latency (P95 & P99)
             </span>
-            <span className="badge badge-emerald" style={{ fontSize: '0.75rem' }}>
-              ▼ {p95Pct}%
+            <span className="badge badge-emerald" style={{ fontSize: '0.72rem' }}>
+              ▼ {p95Pct}% P95 · ▼ {p99Pct}% P99
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-            <span style={{ fontSize: '1.6rem', fontWeight: 800, color: '#10b981', fontFamily: 'var(--font-mono)' }}>
+            <span style={{ fontSize: '1.5rem', fontWeight: 800, color: '#10b981', fontFamily: 'var(--font-mono)' }}>
               -{p95Diff.toFixed(1)} ms
+            </span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              (P99: -{p99Diff.toFixed(1)} ms)
             </span>
           </div>
           <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
-            Predictive: <strong style={{ color: '#ffffff' }}>{keda.p95LatencyMs.toFixed(1)} ms</strong> vs Reactive: <span style={{ color: '#f43f5e' }}>{hpa.p95LatencyMs.toFixed(1)} ms</span>
+            P95: <strong style={{ color: '#ffffff' }}>{keda.p95LatencyMs.toFixed(1)}ms</strong> vs <span style={{ color: '#f43f5e' }}>{hpa.p95LatencyMs.toFixed(1)}ms</span> · P99: <strong style={{ color: '#ffffff' }}>{keda.p99LatencyMs.toFixed(1)}ms</strong> vs <span style={{ color: '#f43f5e' }}>{hpa.p99LatencyMs.toFixed(1)}ms</span>
           </p>
         </div>
 
@@ -342,7 +350,7 @@ export default function ComparisonView({ history = [] }) {
               </p>
               <ul style={{ paddingLeft: '1.2rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                 <li>
-                  <strong style={{ color: '#10b981' }}>Latency Reduction:</strong> Predictive Prophet + KEDA reduced P95 tail latency by <strong>{p95Pct}%</strong> ({keda.p95LatencyMs.toFixed(1)} ms vs {hpa.p95LatencyMs.toFixed(1)} ms).
+                  <strong style={{ color: '#10b981' }}>Tail Latency Mitigation:</strong> Predictive Prophet + KEDA reduced P95 latency by <strong>{p95Pct}%</strong> ({keda.p95LatencyMs.toFixed(1)} ms vs {hpa.p95LatencyMs.toFixed(1)} ms) and cut critical <strong>P99 extreme tail latency by {p99Pct}%</strong> ({keda.p99LatencyMs.toFixed(1)} ms vs {hpa.p99LatencyMs.toFixed(1)} ms), preventing severe worst-case request queuing under burst traffic.
                 </li>
                 <li>
                   <strong style={{ color: '#06b6d4' }}>SLO Protection:</strong> Reactive HPA breached the 200 ms SLO threshold for <strong>{(hpa.sloViolationRate * 100).toFixed(1)}%</strong> of the experiment, while Predictive KEDA contained breaches to <strong>{(keda.sloViolationRate * 100).toFixed(1)}%</strong>.
