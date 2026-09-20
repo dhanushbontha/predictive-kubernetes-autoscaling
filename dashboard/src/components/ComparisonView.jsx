@@ -164,7 +164,7 @@ export default function ComparisonView({ history = [] }) {
           </div>
           <span className="badge badge-cyan" style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}>
             <Sparkles size={13} style={{ marginRight: '4px' }} />
-            PHASE 12 ACTIVE
+            EVALUATION ENGINE
           </span>
         </div>
 

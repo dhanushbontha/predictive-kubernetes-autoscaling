@@ -253,9 +253,6 @@ export default function App() {
           >
             <Scale size={16} color={activeTab === 'comparison' ? '#8b5cf6' : 'currentColor'} />
             <span>Benchmark Comparison</span>
-            <span className="badge badge-violet" style={{ fontSize: '0.65rem', padding: '0.15rem 0.4rem', marginLeft: '4px' }}>
-              PHASE 12
-            </span>
           </button>
 
           <button
@@ -308,12 +305,12 @@ export default function App() {
         </>
       )}
 
-      {/* Tab 2: Side-by-Side Benchmark Comparison (Phase 12) */}
+      {/* Tab 2: Side-by-Side Benchmark Comparison */}
       {activeTab === 'comparison' && (
         <ComparisonView history={experimentHistory} />
       )}
 
-      {/* Tab 3: Historical Database Table & Audit Trail Explorer (Phase 14) */}
+      {/* Tab 3: Historical Database Table & Audit Trail Explorer */}
       {activeTab === 'history' && (
         <HistoryView history={experimentHistory} onRefresh={refreshState} />
       )}
@@ -329,7 +326,7 @@ export default function App() {
       }}>
         <p>Predictive Kubernetes Autoscaling — Benchmarking Meta Prophet + KEDA vs Reactive HPA</p>
         <p style={{ marginTop: '0.25rem', color: 'var(--text-secondary)' }}>
-          Final-Year Engineering Project Experimental Platform · Phase 14 Complete
+          Final-Year Engineering Project Experimental Platform · Production Ready
         </p>
       </footer>
 
