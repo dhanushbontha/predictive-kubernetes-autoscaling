@@ -314,6 +314,16 @@ public class ExperimentLifecycleService {
     }
 
     /**
+     * Stores an experiment in cache and repository.
+     */
+    public void registerExperiment(Experiment exp) {
+        if (exp != null && exp.getId() != null) {
+            experimentStore.put(exp.getId(), exp);
+            saveExperimentSafely(exp);
+        }
+    }
+
+    /**
      * Returns paired comparative metrics and calculated scientific deltas
      * between reactive HPA and predictive Prophet + KEDA runs.
      */
@@ -340,6 +350,13 @@ public class ExperimentLifecycleService {
             }
         }
 
+        return compareExperiments(hpaExp, kedaExp);
+    }
+
+    /**
+     * Overloaded compareExperiments taking domain objects directly.
+     */
+    public ComparisonResponse compareExperiments(Experiment hpaExp, Experiment kedaExp) {
         WorkloadScenario scenario = (hpaExp != null) ? hpaExp.getScenario() : (kedaExp != null ? kedaExp.getScenario() : WorkloadScenario.BURSTY);
 
         ComparisonResponse resp = new ComparisonResponse(
