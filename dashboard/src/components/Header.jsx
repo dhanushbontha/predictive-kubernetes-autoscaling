@@ -11,8 +11,8 @@ export default function Header({ backendHealth, isRefreshing, onManualRefresh })
     return () => clearInterval(timer);
   }, []);
 
-  const isBackendUp = backendHealth?.status === 'UP';
-  const isDbUp = backendHealth?.components?.db?.status === 'UP';
+  const isBackendUp = backendHealth ? backendHealth.status === 'UP' : true;
+  const isDbUp = backendHealth ? (backendHealth.components?.db?.status === 'UP' || backendHealth.status === 'UP') : true;
 
   return (
     <header className="glass-panel" style={{ padding: '1.25rem 2rem', marginBottom: '1.5rem' }}>

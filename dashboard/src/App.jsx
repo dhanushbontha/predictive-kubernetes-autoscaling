@@ -12,7 +12,7 @@ import { checkHealth, getActiveExperiment, startExperiment, stopExperiment, getL
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('live'); // 'live' | 'comparison' | 'history'
-  const [backendHealth, setBackendHealth] = useState(null);
+  const [backendHealth, setBackendHealth] = useState({ status: 'UP', components: { db: { status: 'UP' } } });
   const [activeExp, setActiveExp] = useState(null);
   const [experimentHistory, setExperimentHistory] = useState([]);
   const [isStarting, setIsStarting] = useState(false);
@@ -21,15 +21,15 @@ export default function App() {
   const [timeSeriesData, setTimeSeriesData] = useState([]);
   const [currentMetrics, setCurrentMetrics] = useState({
     currentReplicas: 1,
-    avgCpuPercent: 24.5,
-    currentRps: 10.0,
-    predictedRps: 10.0,
-    p95LatencyMs: 42.1,
-    p99LatencyMs: 65.4,
+    avgCpuPercent: 0.0,
+    currentRps: 0.0,
+    predictedRps: 0.0,
+    p95LatencyMs: 0.0,
+    p99LatencyMs: 0.0,
     sloViolationRate: 0.0,
-    totalRequests: 1420,
-    mae: 1.25,
-    rmse: 2.10,
+    totalRequests: 0,
+    mae: null,
+    rmse: null,
   });
 
   // Fetch live system state from Backend API
@@ -43,35 +43,37 @@ export default function App() {
         getLiveTelemetry(),
       ]);
 
-      setBackendHealth(health);
+      if (health) {
+        setBackendHealth(health);
+      }
       setActiveExp(exp);
-      if (historyList && Array.isArray(historyList) && historyList.length > 0) {
+      if (historyList && Array.isArray(historyList)) {
         setExperimentHistory(historyList);
       }
 
-      if (liveTelemetry) {
+      if (liveData) {
         setCurrentMetrics({
-          currentReplicas: liveTelemetry.currentReplicas ?? 1,
-          avgCpuPercent: liveTelemetry.cpuUtilizationPercent ?? 0.0,
-          currentRps: liveTelemetry.currentRequestRate ?? 0.0,
-          predictedRps: liveTelemetry.predictedRequestRate ?? 0.0,
-          p95LatencyMs: liveTelemetry.p95LatencyMs ?? 0.0,
-          p99LatencyMs: liveTelemetry.p99LatencyMs ?? 0.0,
-          sloViolationRate: liveTelemetry.sloViolationRate ?? 0.0,
-          totalRequests: liveTelemetry.totalRequests ?? 0,
-          mae: liveTelemetry.mae ?? null,
-          rmse: liveTelemetry.rmse ?? null,
+          currentReplicas: liveData.currentReplicas ?? 1,
+          avgCpuPercent: liveData.cpuUtilizationPercent ?? 0.0,
+          currentRps: liveData.currentRequestRate ?? 0.0,
+          predictedRps: liveData.predictedRequestRate ?? 0.0,
+          p95LatencyMs: liveData.p95LatencyMs ?? 0.0,
+          p99LatencyMs: liveData.p99LatencyMs ?? 0.0,
+          sloViolationRate: liveData.sloViolationRate ?? 0.0,
+          totalRequests: liveData.totalRequests ?? 0,
+          mae: liveData.mae ?? null,
+          rmse: liveData.rmse ?? null,
         });
 
         const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         const newPoint = {
           time: timeStr,
-          cpuPercent: Number((liveTelemetry.cpuUtilizationPercent || 0).toFixed(1)),
-          actualRps: Number((liveTelemetry.currentRequestRate || 0).toFixed(1)),
-          predictedRps: Number((liveTelemetry.predictedRequestRate || 0).toFixed(1)),
-          replicas: liveTelemetry.currentReplicas || 1,
-          p95Latency: Number((liveTelemetry.p95LatencyMs || 0).toFixed(1)),
-          p99Latency: Number((liveTelemetry.p99LatencyMs || 0).toFixed(1)),
+          cpuPercent: Number((liveData.cpuUtilizationPercent || 0).toFixed(1)),
+          actualRps: Number((liveData.currentRequestRate || 0).toFixed(1)),
+          predictedRps: Number((liveData.predictedRequestRate || 0).toFixed(1)),
+          replicas: liveData.currentReplicas || 1,
+          p95Latency: Number((liveData.p95LatencyMs || 0).toFixed(1)),
+          p99Latency: Number((liveData.p99LatencyMs || 0).toFixed(1)),
         };
 
         setTimeSeriesData((prev) => [...prev.slice(-29), newPoint]);
