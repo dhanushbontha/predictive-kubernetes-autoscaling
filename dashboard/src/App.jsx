@@ -325,9 +325,6 @@ export default function App() {
         marginTop: '2rem'
       }}>
         <p>Predictive Kubernetes Autoscaling — Benchmarking Meta Prophet + KEDA vs Reactive HPA</p>
-        <p style={{ marginTop: '0.25rem', color: 'var(--text-secondary)' }}>
-          Final-Year Engineering Project Experimental Platform · Production Ready
-        </p>
       </footer>
 
     </div>
