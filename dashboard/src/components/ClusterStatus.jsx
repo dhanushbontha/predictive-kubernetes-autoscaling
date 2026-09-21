@@ -1,16 +1,19 @@
 import React from 'react';
 import { Layers, Server, HardDrive, CheckCircle2, ShieldCheck, Box } from 'lucide-react';
 
-export default function ClusterStatus({ currentReplicas = 1 }) {
-  // Generate visual pod representations based on active replica count
-  const pods = Array.from({ length: currentReplicas }, (_, i) => ({
-    name: `workload-service-7f8d9b6c-${Math.random().toString(36).substring(2, 7)}`,
-    status: 'Running',
-    ready: '1/1',
-    restarts: 0,
-    cpuUsage: `${(Math.random() * 30 + 35).toFixed(0)}m`,
-    memUsage: `${(Math.random() * 20 + 210).toFixed(0)}Mi`,
-  }));
+export default function ClusterStatus({ currentReplicas = 0 }) {
+  const isOnline = currentReplicas > 0;
+  // Generate visual pod representations only when replicas are active
+  const pods = isOnline
+    ? Array.from({ length: currentReplicas }, (_, i) => ({
+        name: `workload-service-7f8d9b6c-${Math.random().toString(36).substring(2, 7)}`,
+        status: 'Running',
+        ready: '1/1',
+        restarts: 0,
+        cpuUsage: `${(Math.random() * 30 + 35).toFixed(0)}m`,
+        memUsage: `${(Math.random() * 20 + 210).toFixed(0)}Mi`,
+      }))
+    : [];
 
   return (
     <div className="glass-panel" style={{ padding: '1.25rem', marginBottom: '1.5rem' }}>
@@ -19,7 +22,9 @@ export default function ClusterStatus({ currentReplicas = 1 }) {
           <Layers size={18} color="#06b6d4" />
           <h3 style={{ fontSize: '0.95rem' }}>Kubernetes Cluster Workload Pods (`autoscaling-experiment`)</h3>
         </div>
-        <span className="badge badge-emerald">{currentReplicas} PODS HEALTHY</span>
+        <span className={`badge ${isOnline ? 'badge-emerald' : 'badge-zinc'}`}>
+          {isOnline ? `${currentReplicas} PODS HEALTHY` : '0 PODS ACTIVE · CLUSTER OFFLINE'}
+        </span>
       </div>
 
       <div style={{ overflowX: 'auto' }}>
@@ -35,25 +40,33 @@ export default function ClusterStatus({ currentReplicas = 1 }) {
             </tr>
           </thead>
           <tbody>
-            {pods.map((p, idx) => (
-              <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: 'background 0.2s ease' }}>
-                <td style={{ padding: '0.6rem 0.75rem', fontFamily: 'var(--font-mono)', color: '#ffffff' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <Box size={14} color="#06b6d4" />
-                    {p.name}
-                  </div>
+            {pods.length === 0 ? (
+              <tr>
+                <td colSpan={6} style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  No active workload pods detected. Start the Kubernetes / Minikube cluster to view live pod state.
                 </td>
-                <td style={{ padding: '0.6rem 0.75rem', color: 'var(--text-secondary)' }}>{p.ready}</td>
-                <td style={{ padding: '0.6rem 0.75rem' }}>
-                  <span className="badge badge-emerald" style={{ fontSize: '0.7rem' }}>
-                    {p.status}
-                  </span>
-                </td>
-                <td style={{ padding: '0.6rem 0.75rem', color: 'var(--text-secondary)' }}>{p.restarts}</td>
-                <td style={{ padding: '0.6rem 0.75rem', fontFamily: 'var(--font-mono)', color: '#38bdf8' }}>{p.cpuUsage}</td>
-                <td style={{ padding: '0.6rem 0.75rem', fontFamily: 'var(--font-mono)', color: '#a78bfa' }}>{p.memUsage}</td>
               </tr>
-            ))}
+            ) : (
+              pods.map((p, idx) => (
+                <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: 'background 0.2s ease' }}>
+                  <td style={{ padding: '0.6rem 0.75rem', fontFamily: 'var(--font-mono)', color: '#ffffff' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <Box size={14} color="#06b6d4" />
+                      {p.name}
+                    </div>
+                  </td>
+                  <td style={{ padding: '0.6rem 0.75rem', color: 'var(--text-secondary)' }}>{p.ready}</td>
+                  <td style={{ padding: '0.6rem 0.75rem' }}>
+                    <span className="badge badge-emerald" style={{ fontSize: '0.7rem' }}>
+                      {p.status}
+                    </span>
+                  </td>
+                  <td style={{ padding: '0.6rem 0.75rem', color: 'var(--text-secondary)' }}>{p.restarts}</td>
+                  <td style={{ padding: '0.6rem 0.75rem', fontFamily: 'var(--font-mono)', color: '#38bdf8' }}>{p.cpuUsage}</td>
+                  <td style={{ padding: '0.6rem 0.75rem', fontFamily: 'var(--font-mono)', color: '#a78bfa' }}>{p.memUsage}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

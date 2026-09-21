@@ -12,7 +12,14 @@ import { checkHealth, getActiveExperiment, startExperiment, stopExperiment, getL
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('live'); // 'live' | 'comparison' | 'history'
-  const [backendHealth, setBackendHealth] = useState({ status: 'UP', components: { db: { status: 'UP' } } });
+  const [backendHealth, setBackendHealth] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('dashboard_backend_health');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
   const [activeExp, setActiveExp] = useState(null);
   const [experimentHistory, setExperimentHistory] = useState([]);
   const [isStarting, setIsStarting] = useState(false);
@@ -20,7 +27,7 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [timeSeriesData, setTimeSeriesData] = useState([]);
   const [currentMetrics, setCurrentMetrics] = useState({
-    currentReplicas: 1,
+    currentReplicas: 0,
     avgCpuPercent: 0.0,
     currentRps: 0.0,
     predictedRps: 0.0,
@@ -45,6 +52,9 @@ export default function App() {
 
       if (health) {
         setBackendHealth(health);
+        try {
+          sessionStorage.setItem('dashboard_backend_health', JSON.stringify(health));
+        } catch {}
       }
       setActiveExp(exp);
       if (historyList && Array.isArray(historyList)) {
@@ -53,7 +63,7 @@ export default function App() {
 
       if (liveData) {
         setCurrentMetrics({
-          currentReplicas: liveData.currentReplicas ?? 1,
+          currentReplicas: liveData.currentReplicas ?? 0,
           avgCpuPercent: liveData.cpuUtilizationPercent ?? 0.0,
           currentRps: liveData.currentRequestRate ?? 0.0,
           predictedRps: liveData.predictedRequestRate ?? 0.0,
@@ -71,7 +81,7 @@ export default function App() {
           cpuPercent: Number((liveData.cpuUtilizationPercent || 0).toFixed(1)),
           actualRps: Number((liveData.currentRequestRate || 0).toFixed(1)),
           predictedRps: Number((liveData.predictedRequestRate || 0).toFixed(1)),
-          replicas: liveData.currentReplicas || 1,
+          replicas: liveData.currentReplicas || 0,
           p95Latency: Number((liveData.p95LatencyMs || 0).toFixed(1)),
           p99Latency: Number((liveData.p99LatencyMs || 0).toFixed(1)),
         };
@@ -79,7 +89,7 @@ export default function App() {
         setTimeSeriesData((prev) => [...prev.slice(-29), newPoint]);
       } else {
         setCurrentMetrics({
-          currentReplicas: 1,
+          currentReplicas: 0,
           avgCpuPercent: 0.0,
           currentRps: 0.0,
           predictedRps: 0.0,
@@ -93,6 +103,23 @@ export default function App() {
       }
     } catch (err) {
       console.warn('Dashboard poll error:', err.message);
+      const downHealth = { status: 'DOWN' };
+      setBackendHealth(downHealth);
+      try {
+        sessionStorage.setItem('dashboard_backend_health', JSON.stringify(downHealth));
+      } catch {}
+      setCurrentMetrics({
+        currentReplicas: 0,
+        avgCpuPercent: 0.0,
+        currentRps: 0.0,
+        predictedRps: 0.0,
+        p95LatencyMs: 0.0,
+        p99LatencyMs: 0.0,
+        sloViolationRate: 0.0,
+        totalRequests: 0,
+        mae: null,
+        rmse: null,
+      });
     } finally {
       setIsRefreshing(false);
     }
@@ -144,6 +171,7 @@ export default function App() {
       {/* 2. Active Experiment Banner & Progress Bar */}
       <ActiveExperimentBanner
         activeExp={activeExp}
+        backendHealth={backendHealth}
         onStopExperiment={handleStopExperiment}
         isStopping={isStopping}
       />

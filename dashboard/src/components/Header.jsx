@@ -11,8 +11,32 @@ export default function Header({ backendHealth, isRefreshing, onManualRefresh })
     return () => clearInterval(timer);
   }, []);
 
-  const isBackendUp = backendHealth ? backendHealth.status === 'UP' : true;
-  const isDbUp = backendHealth ? (backendHealth.components?.db?.status === 'UP' || backendHealth.status === 'UP') : true;
+  const isSyncing = backendHealth === null;
+  const isBackendUp = !isSyncing && Boolean(backendHealth && (backendHealth.status === 'UP' || backendHealth.status === 'OK' || backendHealth.components));
+  const isDbUp = !isSyncing && isBackendUp && Boolean(backendHealth?.components?.db?.status === 'UP');
+  const isProphetUp = !isSyncing && isBackendUp && Boolean(backendHealth?.components?.forecasting?.status === 'UP' || backendHealth?.components?.prophet?.status === 'UP');
+
+  const getBackendInfo = () => {
+    if (isSyncing) return { label: 'SYNCING', color: '#38bdf8', dotClass: 'status-dot-syncing' };
+    if (isBackendUp) return { label: 'ONLINE', color: '#34d399', dotClass: 'status-dot-active' };
+    return { label: 'OFFLINE', color: '#fb7185', dotClass: 'status-dot-danger' };
+  };
+
+  const getDbInfo = () => {
+    if (isSyncing) return { label: 'SYNCING', color: '#38bdf8', dotClass: 'status-dot-syncing' };
+    if (isDbUp) return { label: 'CONNECTED', color: '#34d399', dotClass: 'status-dot-active' };
+    return { label: 'DISCONNECTED', color: '#fbbf24', dotClass: 'status-dot-warning' };
+  };
+
+  const getProphetInfo = () => {
+    if (isSyncing) return { label: 'SYNCING', color: '#38bdf8', dotClass: 'status-dot-syncing' };
+    if (isProphetUp) return { label: 'READY', color: '#22d3ee', dotClass: 'status-dot-active' };
+    return { label: 'NOT READY', color: '#fbbf24', dotClass: 'status-dot-warning' };
+  };
+
+  const backendInfo = getBackendInfo();
+  const dbInfo = getDbInfo();
+  const prophetInfo = getProphetInfo();
 
   return (
     <header className="glass-panel" style={{ padding: '1.25rem 2rem', marginBottom: '1.5rem' }}>
@@ -59,10 +83,10 @@ export default function Header({ backendHealth, isRefreshing, onManualRefresh })
             borderRadius: '8px',
             fontSize: '0.8rem'
           }}>
-            <span className={`status-dot ${isBackendUp ? 'status-dot-active' : 'status-dot-danger'}`} />
-            <Server size={14} color={isBackendUp ? '#10b981' : '#f43f5e'} />
+            <span className={`status-dot ${backendInfo.dotClass}`} />
+            <Server size={14} color={backendInfo.color} />
             <span style={{ color: 'var(--text-secondary)' }}>Backend:</span>
-            <strong style={{ color: isBackendUp ? '#34d399' : '#fb7185' }}>{isBackendUp ? 'ONLINE' : 'OFFLINE'}</strong>
+            <strong style={{ color: backendInfo.color }}>{backendInfo.label}</strong>
           </div>
 
           {/* Database Status */}
@@ -76,10 +100,10 @@ export default function Header({ backendHealth, isRefreshing, onManualRefresh })
             borderRadius: '8px',
             fontSize: '0.8rem'
           }}>
-            <span className={`status-dot ${isDbUp ? 'status-dot-active' : 'status-dot-warning'}`} />
-            <Database size={14} color={isDbUp ? '#10b981' : '#f59e0b'} />
+            <span className={`status-dot ${dbInfo.dotClass}`} />
+            <Database size={14} color={dbInfo.color} />
             <span style={{ color: 'var(--text-secondary)' }}>PostgreSQL:</span>
-            <strong style={{ color: isDbUp ? '#34d399' : '#fbbf24' }}>{isDbUp ? 'CONNECTED' : 'DISCONNECTED'}</strong>
+            <strong style={{ color: dbInfo.color }}>{dbInfo.label}</strong>
           </div>
 
           {/* Forecasting Engine */}
@@ -93,10 +117,10 @@ export default function Header({ backendHealth, isRefreshing, onManualRefresh })
             borderRadius: '8px',
             fontSize: '0.8rem'
           }}>
-            <span className="status-dot status-dot-active" />
-            <Activity size={14} color="#06b6d4" />
+            <span className={`status-dot ${prophetInfo.dotClass}`} />
+            <Activity size={14} color={prophetInfo.color} />
             <span style={{ color: 'var(--text-secondary)' }}>Prophet:</span>
-            <strong style={{ color: '#22d3ee' }}>READY</strong>
+            <strong style={{ color: prophetInfo.color }}>{prophetInfo.label}</strong>
           </div>
 
           {/* Clock & Refresh button */}

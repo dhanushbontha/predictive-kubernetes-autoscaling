@@ -3,10 +3,10 @@ import { Cpu, Server, Activity, Clock, ShieldAlert, CheckCircle2, TrendingUp } f
 
 export default function MetricsOverview({ currentMetrics }) {
   const {
-    currentReplicas = 1,
+    currentReplicas = 0,
     avgCpuPercent = 0,
     currentRps = 0,
-    predictedRps = 10,
+    predictedRps = 0,
     p95LatencyMs = 0,
     p99LatencyMs = 0,
     sloViolationRate = 0,
@@ -25,8 +25,8 @@ export default function MetricsOverview({ currentMetrics }) {
       subtext: 'Min: 1 | Max: 5',
       icon: Server,
       accent: '#06b6d4',
-      badgeText: currentReplicas > 1 ? 'SCALED' : 'BASELINE',
-      badgeClass: currentReplicas > 1 ? 'badge-cyan' : 'badge-emerald',
+      badgeText: currentReplicas > 1 ? 'SCALED' : currentReplicas === 1 ? 'BASELINE' : 'OFFLINE',
+      badgeClass: currentReplicas > 1 ? 'badge-cyan' : currentReplicas === 1 ? 'badge-emerald' : 'badge-zinc',
     },
     {
       title: 'CPU Utilization',

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Square, Clock, Gauge, Target, ShieldAlert, Cpu, CheckCircle } from 'lucide-react';
 
-export default function ActiveExperimentBanner({ activeExp, onStopExperiment, isStopping }) {
+export default function ActiveExperimentBanner({ activeExp, backendHealth, onStopExperiment, isStopping }) {
   const [elapsed, setElapsed] = useState(0);
+  const isBackendUp = Boolean(backendHealth && (backendHealth.status === 'UP' || backendHealth.status === 'OK' || backendHealth.components));
 
   useEffect(() => {
     if (!activeExp || !activeExp.startTime) {
@@ -21,6 +22,35 @@ export default function ActiveExperimentBanner({ activeExp, onStopExperiment, is
     const interval = setInterval(updateProgress, 1000);
     return () => clearInterval(interval);
   }, [activeExp]);
+
+  if (!isBackendUp) {
+    return (
+      <div className="glass-panel" style={{
+        padding: '1rem 1.5rem',
+        marginBottom: '1.5rem',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        background: 'linear-gradient(90deg, rgba(244,63,94,0.05) 0%, rgba(15,23,42,0.6) 100%)',
+        borderColor: 'rgba(244,63,94,0.2)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+          <div style={{ padding: '0.5rem', background: 'rgba(244,63,94,0.15)', borderRadius: '10px' }}>
+            <ShieldAlert size={20} color="#f43f5e" />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <strong style={{ fontSize: '0.95rem', color: '#fb7185' }}>Backend Service Offline</strong>
+              <span className="badge badge-rose">DISCONNECTED</span>
+            </div>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.1rem' }}>
+              Connect Spring Boot backend on port 8080 and PostgreSQL to initialize benchmark engine.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!activeExp || activeExp.status === 'IDLE' || activeExp.status === 'COMPLETED' || activeExp.status === 'STOPPED') {
     return (

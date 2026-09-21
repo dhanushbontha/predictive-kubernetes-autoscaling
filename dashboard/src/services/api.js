@@ -3,7 +3,7 @@ import axios from 'axios';
 // Base axios instance
 const api = axios.create({
   baseURL: '',
-  timeout: 5000,
+  timeout: 2500,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -14,6 +14,9 @@ export const checkHealth = async () => {
     const res = await api.get('/actuator/health');
     return res.data;
   } catch (err) {
+    if (err.response && err.response.data && (err.response.data.components || err.response.data.status)) {
+      return err.response.data;
+    }
     return { status: 'DOWN', error: err.message };
   }
 };
@@ -26,7 +29,7 @@ export const getActiveExperiment = async () => {
     if (err.response && err.response.status === 404) {
       return null;
     }
-    throw err;
+    return null;
   }
 };
 

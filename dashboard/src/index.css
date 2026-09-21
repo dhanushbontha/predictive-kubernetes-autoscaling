@@ -166,6 +166,12 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 0 10px var(--rose-primary);
 }
 
+.status-dot-syncing {
+  background-color: var(--cyan-primary);
+  box-shadow: 0 0 8px var(--cyan-primary);
+  opacity: 0.8;
+}
+
 @keyframes pulse-ring {
   0% { transform: scale(0.5); opacity: 0.8; }
   100% { transform: scale(1.6); opacity: 0; }

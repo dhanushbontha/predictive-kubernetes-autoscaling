@@ -111,12 +111,12 @@ public class KubernetesOrchestratorService {
                 } catch (Exception ex) {
                     // ignore
                 }
-                return 1;
+                return 0;
             }).get(400, java.util.concurrent.TimeUnit.MILLISECONDS);
         } catch (Exception ex) {
             // Cluster unavailable or timeout
         }
-        return 1;
+        return 0;
     }
 
     /**
