@@ -79,6 +79,10 @@ public class KubernetesOrchestratorService {
         this.kubernetesClient = kubernetesClient;
     }
 
+    public KubernetesClient getKubernetesClient() {
+        return this.kubernetesClient;
+    }
+
     public String resolveNamespace(String namespace) {
         return (namespace != null && !namespace.isBlank()) ? namespace : defaultNamespace;
     }

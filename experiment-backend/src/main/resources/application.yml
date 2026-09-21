@@ -38,6 +38,7 @@ management:
       show-details: always
 
 app:
+  mode: ${APP_MODE:research}
   kubernetes:
     namespace: autoscaling-experiment
     workload-deployment: workload-service

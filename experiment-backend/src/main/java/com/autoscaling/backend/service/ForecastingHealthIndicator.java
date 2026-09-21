@@ -13,64 +13,36 @@ import org.springframework.web.client.RestClient;
 import java.util.Map;
 
 /**
- * Actuator HealthIndicator that probes the real Python FastAPI forecasting service /health endpoint.
- * Supports Kubernetes DNS (http://forecasting-service:8000) and local dev environments.
+ * Actuator HealthIndicator that strictly probes the configured Prophet forecasting-service health endpoint.
+ * No silent secondary fallbacks.
  */
 @Component("forecasting")
 public class ForecastingHealthIndicator implements HealthIndicator {
 
     private static final Logger log = LoggerFactory.getLogger(ForecastingHealthIndicator.class);
 
-    private final String primaryUrl;
-    private final RestClient primaryClient;
-    private final RestClient localFallbackClient;
+    private final String configuredUrl;
+    private final RestClient restClient;
 
     public ForecastingHealthIndicator(
             @Value("${app.forecasting.url:http://forecasting-service:8000}") String forecastingUrl) {
-        this.primaryUrl = forecastingUrl;
+        this.configuredUrl = forecastingUrl;
         
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(800);
         factory.setReadTimeout(1200);
 
-        this.primaryClient = RestClient.builder()
+        this.restClient = RestClient.builder()
                 .baseUrl(forecastingUrl)
-                .requestFactory(factory)
-                .build();
-
-        this.localFallbackClient = RestClient.builder()
-                .baseUrl("http://localhost:8000")
                 .requestFactory(factory)
                 .build();
     }
 
     @Override
-    public Health health() {
-        // 1. Try primary configured endpoint (Kubernetes Service DNS)
-        Health primaryHealth = probeUrl(primaryClient, primaryUrl);
-        if (primaryHealth != null) {
-            return primaryHealth;
-        }
-
-        // 2. If primary is not localhost and was unreachable (e.g. local dev outside k8s), try localhost
-        if (!primaryUrl.contains("localhost") && !primaryUrl.contains("127.0.0.1")) {
-            Health localHealth = probeUrl(localFallbackClient, "http://localhost:8000");
-            if (localHealth != null) {
-                return localHealth;
-            }
-        }
-
-        return Health.down()
-                .withDetail("service", "forecasting-service")
-                .withDetail("status", "UNAVAILABLE")
-                .withDetail("probedUrl", primaryUrl)
-                .build();
-    }
-
     @SuppressWarnings("unchecked")
-    private Health probeUrl(RestClient client, String targetUrl) {
+    public Health health() {
         try {
-            ResponseEntity<Map> response = client.get()
+            ResponseEntity<Map> response = restClient.get()
                     .uri("/health")
                     .retrieve()
                     .toEntity(Map.class);
@@ -81,16 +53,28 @@ public class ForecastingHealthIndicator implements HealthIndicator {
                 boolean modelReady = Boolean.parseBoolean(String.valueOf(body.getOrDefault("model_ready", false)));
 
                 if ("UP".equalsIgnoreCase(status)) {
+                    boolean isK8s = configuredUrl.contains("forecasting-service") || configuredUrl.contains("8000");
                     return Health.up()
                             .withDetail("service", "forecasting-service")
                             .withDetail("modelReady", modelReady)
-                            .withDetail("endpoint", targetUrl + "/health")
+                            .withDetail("endpoint", configuredUrl + "/health")
+                            .withDetail("isKubernetes", isK8s)
                             .build();
                 }
             }
+            return Health.down()
+                    .withDetail("service", "forecasting-service")
+                    .withDetail("status", "NON_UP_RESPONSE")
+                    .withDetail("endpoint", configuredUrl + "/health")
+                    .build();
         } catch (Exception ex) {
-            log.debug("Forecasting health probe to {} failed: {}", targetUrl, ex.getMessage());
+            log.debug("Forecasting health probe to {} failed: {}", configuredUrl, ex.getMessage());
+            return Health.down()
+                    .withDetail("service", "forecasting-service")
+                    .withDetail("status", "UNAVAILABLE")
+                    .withDetail("endpoint", configuredUrl + "/health")
+                    .withDetail("error", ex.getMessage())
+                    .build();
         }
-        return null;
     }
 }
