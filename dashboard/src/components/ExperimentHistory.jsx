@@ -2,40 +2,7 @@ import React from 'react';
 import { Database, CheckCircle2, XCircle, Clock, AlertCircle, RefreshCw, Layers } from 'lucide-react';
 
 export default function ExperimentHistory({ history = [] }) {
-  const defaultHistory = [
-    {
-      id: '3e215511',
-      name: 'bursty-hpa-benchmark',
-      scenario: 'BURSTY',
-      autoscalingMode: 'REACTIVE_HPA',
-      targetRps: 150,
-      durationSeconds: 60,
-      status: 'COMPLETED',
-      result: {
-        p95LatencyMs: 248.5,
-        sloViolationRate: 0.142,
-        peakReplicas: 4,
-        avgCpuPercent: 68.4,
-      },
-    },
-    {
-      id: '8f419b22',
-      name: 'bursty-keda-predictive',
-      scenario: 'BURSTY',
-      autoscalingMode: 'PREDICTIVE_PROPHET_KEDA',
-      targetRps: 150,
-      durationSeconds: 60,
-      status: 'COMPLETED',
-      result: {
-        p95LatencyMs: 82.1,
-        sloViolationRate: 0.008,
-        peakReplicas: 5,
-        avgCpuPercent: 44.2,
-      },
-    },
-  ];
-
-  const rawItems = history && history.length > 0 ? history : defaultHistory;
+  const rawItems = history || [];
 
   return (
     <div className="glass-panel" style={{ padding: '1.25rem', marginBottom: '1.5rem' }}>
@@ -68,7 +35,14 @@ export default function ExperimentHistory({ history = [] }) {
             </tr>
           </thead>
           <tbody>
-            {rawItems.map((item, idx) => {
+            {rawItems.length === 0 ? (
+              <tr>
+                <td colSpan={9} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                  No completed experiments recorded yet. Launch an experiment from the Live Monitor to generate verified benchmark data.
+                </td>
+              </tr>
+            ) : (
+              rawItems.map((item, idx) => {
               const modeStr = item.autoscalingMode || item.mode || '';
               const isPredictive = modeStr.includes('PREDICTIVE');
               

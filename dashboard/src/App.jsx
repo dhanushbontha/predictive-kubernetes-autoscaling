@@ -49,105 +49,44 @@ export default function App() {
         setExperimentHistory(historyList);
       }
 
-      // Try fetching real time series from backend
-      const rawCpu = await getLiveSeries('CPU_USAGE', 120);
-      const rawRps = await getLiveSeries('REQUEST_RATE', 120);
-      const rawReplicas = await getLiveSeries('REPLICAS', 120);
-      const rawLatency = await getLiveSeries('LATENCY_P95', 120);
-
-      const hasBackendData = rawCpu && rawCpu.length > 0;
-
-      if (hasBackendData) {
-        // Map backend series into consolidated time points
-        const merged = rawCpu.map((pt, idx) => {
-          const timeStr = new Date(pt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-          const rpsVal = rawRps[idx]?.value || 10;
-          const repVal = rawReplicas[idx]?.value || 1;
-          const latVal = rawLatency[idx]?.value || 40;
-          const predVal = activeExp?.autoscalingMode === 'PREDICTIVE_PROPHET_KEDA' ? rpsVal * 1.05 : rpsVal;
-
-          return {
-            time: timeStr,
-            cpuPercent: pt.value || 0,
-            actualRps: rpsVal,
-            predictedRps: predVal,
-            replicas: repVal,
-            p95Latency: latVal,
-            p99Latency: latVal * 1.35,
-          };
+      if (liveTelemetry) {
+        setCurrentMetrics({
+          currentReplicas: liveTelemetry.currentReplicas ?? 1,
+          avgCpuPercent: liveTelemetry.cpuUtilizationPercent ?? 0.0,
+          currentRps: liveTelemetry.currentRequestRate ?? 0.0,
+          predictedRps: liveTelemetry.predictedRequestRate ?? 0.0,
+          p95LatencyMs: liveTelemetry.p95LatencyMs ?? 0.0,
+          p99LatencyMs: liveTelemetry.p99LatencyMs ?? 0.0,
+          sloViolationRate: liveTelemetry.sloViolationRate ?? 0.0,
+          totalRequests: liveTelemetry.totalRequests ?? 0,
+          mae: liveTelemetry.mae ?? null,
+          rmse: liveTelemetry.rmse ?? null,
         });
-        setTimeSeriesData(merged);
 
-        // Update latest KPI metrics
-        if (merged.length > 0) {
-          const last = merged[merged.length - 1];
-          setCurrentMetrics({
-            currentReplicas: Math.max(1, Math.round(last.replicas)),
-            avgCpuPercent: last.cpuPercent,
-            currentRps: last.actualRps,
-            predictedRps: last.predictedRps,
-            p95LatencyMs: last.p95Latency,
-            p99LatencyMs: last.p99Latency,
-            sloViolationRate: last.p95Latency > 200 ? 8.5 : 0.0,
-            totalRequests: 24500,
-            mae: 1.25,
-            rmse: 2.10,
-          });
-        }
+        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const newPoint = {
+          time: timeStr,
+          cpuPercent: Number((liveTelemetry.cpuUtilizationPercent || 0).toFixed(1)),
+          actualRps: Number((liveTelemetry.currentRequestRate || 0).toFixed(1)),
+          predictedRps: Number((liveTelemetry.predictedRequestRate || 0).toFixed(1)),
+          replicas: liveTelemetry.currentReplicas || 1,
+          p95Latency: Number((liveTelemetry.p95LatencyMs || 0).toFixed(1)),
+          p99Latency: Number((liveTelemetry.p99LatencyMs || 0).toFixed(1)),
+        };
+
+        setTimeSeriesData((prev) => [...prev.slice(-29), newPoint]);
       } else {
-        // Generate simulated dynamic streaming points when backend Prometheus is warming up
-        setTimeSeriesData((prev) => {
-          const now = new Date();
-          const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-          const isRunning = exp && (exp.status === 'STARTING' || exp.status === 'RUNNING');
-          const isPredictive = exp?.autoscalingMode === 'PREDICTIVE_PROPHET_KEDA';
-          const target = exp?.targetRps || 150;
-
-          let cpu = 25 + Math.random() * 5;
-          let rps = 10 + Math.random() * 3;
-          let reps = 1;
-          let p95 = 35 + Math.random() * 8;
-
-          if (isRunning) {
-            rps = target * (0.8 + Math.random() * 0.35);
-            if (isPredictive) {
-              reps = Math.min(5, Math.max(2, Math.ceil(rps / 30)));
-              cpu = Math.min(65, (rps / (reps * 35)) * 50);
-              p95 = 55 + Math.random() * 20;
-            } else {
-              // Reactive HPA lag simulation
-              reps = Math.min(5, Math.max(1, Math.floor(rps / 40)));
-              cpu = Math.min(92, (rps / (reps * 30)) * 60);
-              p95 = reps < 3 ? 240 + Math.random() * 40 : 110 + Math.random() * 20;
-            }
-          }
-
-          const newPoint = {
-            time: timeStr,
-            cpuPercent: Number(cpu.toFixed(1)),
-            actualRps: Number(rps.toFixed(1)),
-            predictedRps: isPredictive ? Number((rps * 1.02).toFixed(1)) : Number(rps.toFixed(1)),
-            replicas: reps,
-            p95Latency: Number(p95.toFixed(1)),
-            p99Latency: Number((p95 * 1.4).toFixed(1)),
-          };
-
-          const updated = [...prev.slice(-29), newPoint];
-
-          setCurrentMetrics({
-            currentReplicas: reps,
-            avgCpuPercent: newPoint.cpuPercent,
-            currentRps: newPoint.actualRps,
-            predictedRps: newPoint.predictedRps,
-            p95LatencyMs: newPoint.p95Latency,
-            p99LatencyMs: newPoint.p99Latency,
-            sloViolationRate: newPoint.p95Latency > 200 ? 12.4 : 0.4,
-            totalRequests: isRunning ? 38400 : 1200,
-            mae: 1.18,
-            rmse: 1.94,
-          });
-
-          return updated;
+        setCurrentMetrics({
+          currentReplicas: 1,
+          avgCpuPercent: 0.0,
+          currentRps: 0.0,
+          predictedRps: 0.0,
+          p95LatencyMs: 0.0,
+          p99LatencyMs: 0.0,
+          sloViolationRate: 0.0,
+          totalRequests: 0,
+          mae: null,
+          rmse: null,
         });
       }
     } catch (err) {

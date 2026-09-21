@@ -66,79 +66,132 @@ export default function ComparisonView({ history = [] }) {
     loadComparison();
   }, [selectedScenario, history]);
 
-  // Fallback defaults for selected scenario if backend comparison is null
-  const hpa = comparisonData?.reactiveHpaExperiment?.result || {
-    p95LatencyMs: selectedScenario === 'BURSTY' ? 248.5 : (selectedScenario === 'PERIODIC' ? 210.5 : 115.0),
-    p99LatencyMs: selectedScenario === 'BURSTY' ? 365.0 : (selectedScenario === 'PERIODIC' ? 295.0 : 165.0),
-    sloViolationRate: selectedScenario === 'BURSTY' ? 0.142 : (selectedScenario === 'PERIODIC' ? 0.118 : 0.032),
-    sloViolations: selectedScenario === 'BURSTY' ? 1277 : 940,
-    peakReplicas: selectedScenario === 'BURSTY' ? 4 : 4,
-    avgReplicas: selectedScenario === 'BURSTY' ? 2.4 : 2.2,
-    avgCpuPercent: selectedScenario === 'BURSTY' ? 68.4 : 68.0,
-    peakCpuPercent: selectedScenario === 'BURSTY' ? 94.5 : 91.0,
-    avgScalingDelaySeconds: selectedScenario === 'BURSTY' ? 28.5 : 24.0,
-  };
+  const hpa = comparisonData?.reactiveHpaExperiment?.result || null;
+  const keda = comparisonData?.predictiveKedaExperiment?.result || null;
+  const hasBoth = Boolean(hpa && keda);
+  const hasHpa = Boolean(hpa);
+  const hasKeda = Boolean(keda);
 
-  const keda = comparisonData?.predictiveKedaExperiment?.result || {
-    p95LatencyMs: selectedScenario === 'BURSTY' ? 74.5 : (selectedScenario === 'PERIODIC' ? 52.4 : 48.2),
-    p99LatencyMs: selectedScenario === 'BURSTY' ? 108.2 : (selectedScenario === 'PERIODIC' ? 78.0 : 71.0),
-    sloViolationRate: selectedScenario === 'BURSTY' ? 0.008 : (selectedScenario === 'PERIODIC' ? 0.002 : 0.0),
-    sloViolations: selectedScenario === 'BURSTY' ? 72 : 16,
-    peakReplicas: selectedScenario === 'BURSTY' ? 5 : 4,
-    avgReplicas: selectedScenario === 'BURSTY' ? 3.2 : 2.8,
-    avgCpuPercent: selectedScenario === 'BURSTY' ? 44.2 : 42.0,
-    peakCpuPercent: selectedScenario === 'BURSTY' ? 62.0 : 58.0,
-    avgScalingDelaySeconds: selectedScenario === 'BURSTY' ? 3.2 : 2.1,
-    mae: selectedScenario === 'BURSTY' ? 1.18 : 0.85,
-    rmse: selectedScenario === 'BURSTY' ? 1.94 : 1.42,
-  };
+  if (!hasBoth) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2rem' }}>
+        {/* 1. Header & Scenario Selector */}
+        <div className="glass-panel" style={{ padding: '1.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{
+                background: 'linear-gradient(135deg, rgba(139,92,246,0.2) 0%, rgba(6,182,212,0.2) 100%)',
+                padding: '0.6rem',
+                borderRadius: '10px',
+                border: '1px solid rgba(139,92,246,0.4)',
+              }}>
+                <Scale size={22} color="#8b5cf6" />
+              </div>
+              <div>
+                <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#ffffff' }}>
+                  Benchmark Comparison & Evaluation Engine
+                </h2>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                  Head-to-head empirical evaluation: Reactive HPA vs Predictive Meta Prophet + KEDA
+                </p>
+              </div>
+            </div>
+            <span className="badge badge-zinc" style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}>
+              <Sparkles size={13} style={{ marginRight: '4px' }} />
+              AWAITING EXPERIMENT DATA
+            </span>
+          </div>
 
-  const p95Diff = hpa.p95LatencyMs - keda.p95LatencyMs;
-  const p95Pct = ((p95Diff / hpa.p95LatencyMs) * 100).toFixed(1);
+          {/* Scenario Pill Buttons */}
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {SCENARIOS.map((sc) => {
+              const isSelected = selectedScenario === sc.id;
+              return (
+                <button
+                  key={sc.id}
+                  onClick={() => setSelectedScenario(sc.id)}
+                  className={`btn ${isSelected ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    fontSize: '0.8rem',
+                    borderRadius: '0.5rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    border: isSelected ? '1px solid #06b6d4' : '1px solid var(--border-subtle)',
+                  }}
+                >
+                  <span style={{ fontWeight: isSelected ? 700 : 500 }}>{sc.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Empty State Banner */}
+        <div className="glass-panel" style={{ textAlign: 'center', padding: '3.5rem 1.5rem' }}>
+          <Scale size={48} color="#64748b" style={{ margin: '0 auto 1rem', opacity: 0.6 }} />
+          <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#ffffff', marginBottom: '0.5rem' }}>
+            No Completed Benchmark Data Available for {selectedScenario}
+          </h3>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', maxWidth: '540px', margin: '0 auto', lineHeight: 1.6 }}>
+            {!hasHpa && !hasKeda
+              ? `Neither Reactive (HPA) nor Predictive (KEDA) experiments have been completed for the ${selectedScenario} scenario yet. Run both autoscaling modes from the Live Monitor to generate verified side-by-side comparative analytics.`
+              : hasHpa
+              ? `Reactive HPA experiment completed (P95: ${hpa.p95LatencyMs != null ? `${hpa.p95LatencyMs.toFixed(1)} ms` : '—'}), but no Predictive KEDA run exists for ${selectedScenario}. Run a Predictive KEDA experiment to compare performance.`
+              : `Predictive KEDA experiment completed (P95: ${keda.p95LatencyMs != null ? `${keda.p95LatencyMs.toFixed(1)} ms` : '—'}), but no Reactive HPA run exists for ${selectedScenario}. Run a Reactive HPA experiment to compare performance.`}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const p95Diff = (hpa.p95LatencyMs || 0) - (keda.p95LatencyMs || 0);
+  const p95Pct = hpa.p95LatencyMs > 0 ? ((p95Diff / hpa.p95LatencyMs) * 100).toFixed(1) : '0.0';
 
   const p99Diff = (hpa.p99LatencyMs || 0) - (keda.p99LatencyMs || 0);
-  const p99Pct = hpa.p99LatencyMs > 0
-    ? (((p99Diff / hpa.p99LatencyMs) * 100).toFixed(1))
-    : '0.0';
+  const p99Pct = hpa.p99LatencyMs > 0 ? (((p99Diff / hpa.p99LatencyMs) * 100).toFixed(1)) : '0.0';
 
-  const sloDiff = (hpa.sloViolationRate * 100) - (keda.sloViolationRate * 100);
-  const sloReductionPct = hpa.sloViolationRate > 0
-    ? (((hpa.sloViolationRate - keda.sloViolationRate) / hpa.sloViolationRate) * 100).toFixed(1)
-    : '100.0';
+  const hpaSloRate = hpa.sloViolationRate || 0;
+  const kedaSloRate = keda.sloViolationRate || 0;
+  const sloDiff = (hpaSloRate * 100) - (kedaSloRate * 100);
+  const sloReductionPct = hpaSloRate > 0 ? (((hpaSloRate - kedaSloRate) / hpaSloRate) * 100).toFixed(1) : '0.0';
 
-  const delayDiff = (hpa.avgScalingDelaySeconds - keda.avgScalingDelaySeconds).toFixed(1);
-  const delayPct = (((hpa.avgScalingDelaySeconds - keda.avgScalingDelaySeconds) / hpa.avgScalingDelaySeconds) * 100).toFixed(1);
+  const hpaDelay = hpa.avgScalingDelaySeconds || 0;
+  const kedaDelay = keda.avgScalingDelaySeconds || 0;
+  const delayDiff = (hpaDelay - kedaDelay).toFixed(1);
+  const delayPct = hpaDelay > 0 ? (((hpaDelay - kedaDelay) / hpaDelay) * 100).toFixed(1) : '0.0';
 
   // Data for Recharts side-by-side grouped bar chart
   const chartData = [
     {
       metric: 'P95 Latency',
-      Reactive_HPA: Number(hpa.p95LatencyMs.toFixed(1)),
-      Predictive_KEDA: Number(keda.p95LatencyMs.toFixed(1)),
+      Reactive_HPA: Number((hpa.p95LatencyMs || 0).toFixed(1)),
+      Predictive_KEDA: Number((keda.p95LatencyMs || 0).toFixed(1)),
       unit: 'ms',
     },
     {
       metric: 'P99 Latency',
-      Reactive_HPA: Number(hpa.p99LatencyMs.toFixed(1)),
-      Predictive_KEDA: Number(keda.p99LatencyMs.toFixed(1)),
+      Reactive_HPA: Number((hpa.p99LatencyMs || 0).toFixed(1)),
+      Predictive_KEDA: Number((keda.p99LatencyMs || 0).toFixed(1)),
       unit: 'ms',
     },
     {
       metric: 'SLO Breach %',
-      Reactive_HPA: Number((hpa.sloViolationRate * 100).toFixed(1)),
-      Predictive_KEDA: Number((keda.sloViolationRate * 100).toFixed(1)),
+      Reactive_HPA: Number((hpaSloRate * 100).toFixed(1)),
+      Predictive_KEDA: Number((kedaSloRate * 100).toFixed(1)),
       unit: '%',
     },
     {
       metric: 'Scaling Lag',
-      Reactive_HPA: Number(hpa.avgScalingDelaySeconds.toFixed(1)),
-      Predictive_KEDA: Number(keda.avgScalingDelaySeconds.toFixed(1)),
+      Reactive_HPA: Number(hpaDelay.toFixed(1)),
+      Predictive_KEDA: Number(kedaDelay.toFixed(1)),
       unit: 's',
     },
     {
       metric: 'Avg CPU Load',
-      Reactive_HPA: Number(hpa.avgCpuPercent.toFixed(1)),
-      Predictive_KEDA: Number(keda.avgCpuPercent.toFixed(1)),
+      Reactive_HPA: Number((hpa.avgCpuPercent || 0).toFixed(1)),
+      Predictive_KEDA: Number((keda.avgCpuPercent || 0).toFixed(1)),
       unit: '%',
     },
   ];
@@ -274,19 +327,19 @@ export default function ComparisonView({ history = [] }) {
         <div className="glass-panel" style={{ padding: '1.25rem', borderLeft: '4px solid #f59e0b' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
-              Meta Prophet Accuracy
+              Prophet Forecast Accuracy
             </span>
             <span className="badge badge-amber" style={{ fontSize: '0.75rem' }}>
-              ONLINE
+              {keda.mae != null ? 'EVALUATED' : 'N/A'}
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-            <span style={{ fontSize: '1.4rem', fontWeight: 800, color: '#f59e0b', fontFamily: 'var(--font-mono)' }}>
-              MAE {keda.mae || '1.18'} · RMSE {keda.rmse || '1.94'}
+            <span style={{ fontSize: '1.3rem', fontWeight: 800, color: '#f59e0b', fontFamily: 'var(--font-mono)' }}>
+              MAE {keda.mae != null ? keda.mae.toFixed(2) : '—'} · RMSE {keda.rmse != null ? keda.rmse.toFixed(2) : '—'}
             </span>
           </div>
           <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
-            Bayesian time-series residual accuracy score
+            Out-of-sample forecast accuracy evaluated during experiment
           </p>
         </div>
 
@@ -447,10 +500,10 @@ export default function ComparisonView({ history = [] }) {
               {/* Row 7: ML Metrics */}
               <tr>
                 <td style={{ padding: '0.6rem 0.75rem', fontWeight: 600 }}>Time-Series Model Accuracy</td>
-                <td style={{ padding: '0.6rem 0.75rem', color: 'var(--text-secondary)' }}>N/A (Threshold based)</td>
-                <td style={{ padding: '0.6rem 0.75rem', fontFamily: 'var(--font-mono)', color: '#f59e0b' }}>MAE: {keda.mae || '1.18'} | RMSE: {keda.rmse || '1.94'}</td>
-                <td style={{ padding: '0.6rem 0.75rem', fontFamily: 'var(--font-mono)', color: '#f59e0b' }}>Bayesian Prophet</td>
-                <td style={{ padding: '0.6rem 0.75rem' }}><span className="badge badge-amber">ML Enabled</span></td>
+                <td style={{ padding: '0.6rem 0.75rem', color: 'var(--text-secondary)' }}>N/A (Reactive Rules)</td>
+                <td style={{ padding: '0.6rem 0.75rem', fontFamily: 'var(--font-mono)', color: '#f59e0b' }}>MAE: {keda.mae != null ? keda.mae.toFixed(2) : '—'} | RMSE: {keda.rmse != null ? keda.rmse.toFixed(2) : '—'}</td>
+                <td style={{ padding: '0.6rem 0.75rem', fontFamily: 'var(--font-mono)', color: '#f59e0b' }}>Prophet Out-of-Sample</td>
+                <td style={{ padding: '0.6rem 0.75rem' }}><span className="badge badge-amber">{keda.mae != null ? 'Evaluated' : 'N/A'}</span></td>
               </tr>
 
             </tbody>

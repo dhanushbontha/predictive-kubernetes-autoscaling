@@ -370,13 +370,13 @@ public class ExperimentLifecycleService {
             ExperimentResult hpaRes = hpaExp.getResult();
             ExperimentResult kedaRes = kedaExp.getResult();
 
-            double hpaP95 = hpaRes.getP95LatencyMs() != null ? hpaRes.getP95LatencyMs() : 200.0;
-            double kedaP95 = kedaRes.getP95LatencyMs() != null ? kedaRes.getP95LatencyMs() : 60.0;
+            double hpaP95 = hpaRes.getP95LatencyMs() != null ? hpaRes.getP95LatencyMs() : 0.0;
+            double kedaP95 = kedaRes.getP95LatencyMs() != null ? kedaRes.getP95LatencyMs() : 0.0;
             double p95Diff = hpaP95 - kedaP95;
             double p95Pct = (hpaP95 > 0) ? (p95Diff / hpaP95) * 100.0 : 0.0;
 
-            double hpaP99 = hpaRes.getP99LatencyMs() != null ? hpaRes.getP99LatencyMs() : 300.0;
-            double kedaP99 = kedaRes.getP99LatencyMs() != null ? kedaRes.getP99LatencyMs() : 90.0;
+            double hpaP99 = hpaRes.getP99LatencyMs() != null ? hpaRes.getP99LatencyMs() : 0.0;
+            double kedaP99 = kedaRes.getP99LatencyMs() != null ? kedaRes.getP99LatencyMs() : 0.0;
             double p99Diff = hpaP99 - kedaP99;
             double p99Pct = (hpaP99 > 0) ? (p99Diff / hpaP99) * 100.0 : 0.0;
 
@@ -388,8 +388,8 @@ public class ExperimentLifecycleService {
             double kedaSloRate = kedaRes.getSloViolationRate() != null ? kedaRes.getSloViolationRate() : 0.0;
             double sloRateReductionPct = (hpaSloRate > 0) ? ((hpaSloRate - kedaSloRate) / hpaSloRate) * 100.0 : 0.0;
 
-            double hpaDelay = hpaRes.getAvgScalingDelaySeconds() != null ? hpaRes.getAvgScalingDelaySeconds() : 25.0;
-            double kedaDelay = kedaRes.getAvgScalingDelaySeconds() != null ? kedaRes.getAvgScalingDelaySeconds() : 3.0;
+            double hpaDelay = hpaRes.getAvgScalingDelaySeconds() != null ? hpaRes.getAvgScalingDelaySeconds() : 0.0;
+            double kedaDelay = kedaRes.getAvgScalingDelaySeconds() != null ? kedaRes.getAvgScalingDelaySeconds() : 0.0;
             double delayImprovement = hpaDelay - kedaDelay;
 
             double underPenalty = hpaSloRate * 100.0;
@@ -405,11 +405,27 @@ public class ExperimentLifecycleService {
             resp.setUnderProvisioningPenaltyScore(round2(underPenalty));
             resp.setOverProvisioningPenaltyScore(round2(overPenalty));
 
-            String summary = String.format(
-                    "Predictive KEDA achieved a %.1f%% reduction in P95 latency (%.1f ms vs %.1f ms) and eliminated %.1f%% of SLO violations compared to Reactive HPA under %s traffic, while reducing scaling provisioning lag by %.1fs.",
-                    p95Pct, kedaP95, hpaP95, sloRateReductionPct, scenario.name(), delayImprovement
-            );
-            resp.setExecutiveSummary(summary);
+            StringBuilder summary = new StringBuilder();
+            summary.append(String.format("Empirical evaluation under %s workload pattern: ", scenario.name()));
+            if (p95Diff > 0) {
+                summary.append(String.format("Predictive KEDA achieved a %.1f%% reduction in P95 latency (%.1f ms vs %.1f ms). ", p95Pct, kedaP95, hpaP95));
+            } else if (p95Diff < 0) {
+                summary.append(String.format("Reactive HPA demonstrated lower P95 latency by %.1f ms (%.1f ms vs %.1f ms). ", Math.abs(p95Diff), hpaP95, kedaP95));
+            } else {
+                summary.append(String.format("Both autoscalers achieved comparable P95 latency (%.1f ms). ", kedaP95));
+            }
+
+            if (hpaViolations > kedaViolations) {
+                summary.append(String.format("SLO breaches were reduced by %.1f%% (%d avoided). ", sloRateReductionPct, violationsAvoided));
+            } else if (kedaViolations > hpaViolations) {
+                summary.append(String.format("Reactive HPA had %d fewer SLO breaches. ", kedaViolations - hpaViolations));
+            }
+
+            if (delayImprovement != 0.0) {
+                summary.append(String.format("Scaling provisioning delay difference: %.1fs.", delayImprovement));
+            }
+
+            resp.setExecutiveSummary(summary.toString().trim());
         }
 
         return resp;
@@ -437,168 +453,157 @@ public class ExperimentLifecycleService {
     }
 
     /**
-     * Calculates benchmark metrics and provisioning delay for the completed experiment
-     * reflecting realistic autoscaling dynamics across scenarios and modes.
+     * Calculates authentic experiment results derived entirely from actual Prometheus telemetry
+     * and real Kubernetes pod condition readiness timestamps over the experiment window [startTime, endTime].
      */
     private ExperimentResult calculateExperimentResults(Experiment exp) {
         ExperimentResult result = new ExperimentResult();
-        int targetRps = exp.getTargetRps() != null ? exp.getTargetRps() : 150;
-        int duration = exp.getDurationSeconds() != null ? exp.getDurationSeconds() : 120;
-        WorkloadScenario scenario = exp.getScenario() != null ? exp.getScenario() : WorkloadScenario.BURSTY;
-        AutoscalingMode mode = exp.getAutoscalingMode() != null ? exp.getAutoscalingMode() : AutoscalingMode.REACTIVE_HPA;
+        Instant startTime = exp.getStartTime() != null ? exp.getStartTime() : Instant.now().minusSeconds(exp.getDurationSeconds() != null ? exp.getDurationSeconds() : 60);
+        Instant endTime = exp.getEndTime() != null ? exp.getEndTime() : Instant.now();
 
-        long totalReqs = (long) targetRps * duration;
-        result.setTotalRequests(totalReqs);
+        log.info("Calculating authentic experiment results for [{}] over window [{} to {}]", exp.getId(), startTime, endTime);
 
-        boolean isPredictive = mode == AutoscalingMode.PREDICTIVE_PROPHET_KEDA;
+        // 1. Fetch range telemetry from Prometheus for the exact bounded window
+        LiveMetricsHistoryResponse history = prometheusClientService.fetchHistory(startTime, endTime, "2s");
+        var reqSeries = history.getActualWorkloadSeries();
+        var predSeries = history.getPredictedWorkloadSeries();
+        var p95Series = history.getP95LatencySeries();
+        var p99Series = history.getP99LatencySeries();
+        var cpuSeries = history.getCpuUtilizationSeries();
+        var memSeries = history.getMemoryUtilizationSeries();
+        var repSeries = history.getReplicaSeries();
 
-        double p95 = 50.0;
-        double p99 = 80.0;
-        double sloRate = 0.0;
-        double avgCpu = 45.0;
-        double peakCpu = 65.0;
-        int peakReps = 3;
-        double avgReps = 2.0;
-        double scalingDelay = 5.0;
+        // 2. Compute Total Requests and SLO Violations
+        long totalReqs = prometheusClientService.calculateTotalRequests(startTime, endTime, reqSeries);
+        int sloTargetMs = exp.getSloLatencyMs() != null ? exp.getSloLatencyMs() : 200;
+        var sloEval = prometheusClientService.calculateSloViolations(startTime, endTime, (double) sloTargetMs, totalReqs);
+
+        // 3. Compute Aggregates
+        Double avgP95 = prometheusClientService.calculateAverage(p95Series);
+        Double peakP95 = prometheusClientService.calculatePeak(p95Series);
+        Double effectiveP95 = (peakP95 != null && peakP95 > 0.0) ? peakP95 : avgP95;
+
+        Double avgP99 = prometheusClientService.calculateAverage(p99Series);
+        Double peakP99 = prometheusClientService.calculatePeak(p99Series);
+        Double effectiveP99 = (peakP99 != null && peakP99 > 0.0) ? peakP99 : avgP99;
+
+        Double avgCpu = prometheusClientService.calculateAverage(cpuSeries);
+        Double peakCpu = prometheusClientService.calculatePeak(cpuSeries);
+        Double avgReps = prometheusClientService.calculateAverage(repSeries);
+        Double peakRepsD = prometheusClientService.calculatePeak(repSeries);
+        int peakReps = peakRepsD != null ? (int) Math.round(peakRepsD) : 1;
+        Double avgMem = prometheusClientService.calculateAverage(memSeries);
+
+        // 4. Out-of-sample Forecast Accuracy (for predictive mode)
         Double mae = null;
         Double rmse = null;
-
-        switch (scenario) {
-            case BURSTY -> {
-                if (isPredictive) {
-                    p95 = 74.5;
-                    p99 = 108.2;
-                    sloRate = 0.008; // 0.8%
-                    avgCpu = 44.2;
-                    peakCpu = 62.0;
-                    peakReps = 5;
-                    avgReps = 3.2;
-                    scalingDelay = 3.2;
-                    mae = 1.18;
-                    rmse = 1.94;
-                } else {
-                    p95 = 248.5;
-                    p99 = 365.0;
-                    sloRate = 0.142; // 14.2% breach during lag
-                    avgCpu = 68.4;
-                    peakCpu = 94.5;
-                    peakReps = 4;
-                    avgReps = 2.4;
-                    scalingDelay = 28.5;
-                }
-            }
-            case PERIODIC -> {
-                if (isPredictive) {
-                    p95 = 52.4;
-                    p99 = 78.0;
-                    sloRate = 0.002; // 0.2%
-                    avgCpu = 42.0;
-                    peakCpu = 58.0;
-                    peakReps = 4;
-                    avgReps = 2.8;
-                    scalingDelay = 2.1;
-                    mae = 0.85;
-                    rmse = 1.42;
-                } else {
-                    p95 = 210.5;
-                    p99 = 295.0;
-                    sloRate = 0.118; // 11.8%
-                    avgCpu = 68.0;
-                    peakCpu = 91.0;
-                    peakReps = 4;
-                    avgReps = 2.2;
-                    scalingDelay = 24.0;
-                }
-            }
-            case GRADUAL -> {
-                if (isPredictive) {
-                    p95 = 48.2;
-                    p99 = 71.0;
-                    sloRate = 0.0;
-                    avgCpu = 41.5;
-                    peakCpu = 55.0;
-                    peakReps = 4;
-                    avgReps = 2.6;
-                    scalingDelay = 2.5;
-                    mae = 0.92;
-                    rmse = 1.55;
-                } else {
-                    p95 = 115.0;
-                    p99 = 165.0;
-                    sloRate = 0.032; // 3.2%
-                    avgCpu = 58.0;
-                    peakCpu = 78.0;
-                    peakReps = 3;
-                    avgReps = 2.1;
-                    scalingDelay = 18.0;
-                }
-            }
-            case NOISY -> {
-                if (isPredictive) {
-                    p95 = 68.5;
-                    p99 = 98.0;
-                    sloRate = 0.006; // 0.6%
-                    avgCpu = 44.0;
-                    peakCpu = 60.0;
-                    peakReps = 4;
-                    avgReps = 2.7;
-                    scalingDelay = 4.0;
-                    mae = 2.15;
-                    rmse = 3.08;
-                } else {
-                    p95 = 195.0;
-                    p99 = 280.0;
-                    sloRate = 0.095; // 9.5%
-                    avgCpu = 66.5;
-                    peakCpu = 88.0;
-                    peakReps = 4;
-                    avgReps = 2.3;
-                    scalingDelay = 22.0;
-                }
-            }
-            case STABLE -> {
-                if (isPredictive) {
-                    p95 = 42.0;
-                    p99 = 60.0;
-                    sloRate = 0.0;
-                    avgCpu = 46.0;
-                    peakCpu = 52.0;
-                    peakReps = 2;
-                    avgReps = 1.8;
-                    scalingDelay = 1.5;
-                    mae = 0.45;
-                    rmse = 0.78;
-                } else {
-                    p95 = 45.0;
-                    p99 = 65.0;
-                    sloRate = 0.0;
-                    avgCpu = 48.0;
-                    peakCpu = 54.0;
-                    peakReps = 2;
-                    avgReps = 1.8;
-                    scalingDelay = 12.0;
-                }
-            }
+        if (exp.getAutoscalingMode() == AutoscalingMode.PREDICTIVE_PROPHET_KEDA) {
+            mae = prometheusClientService.calculateMae(reqSeries, predSeries);
+            rmse = prometheusClientService.calculateRmse(reqSeries, predSeries);
         }
 
-        result.setP95LatencyMs(p95);
-        result.setP99LatencyMs(p99);
-        result.setSloViolationRate(sloRate);
-        result.setSloViolations((long) (totalReqs * sloRate));
+        // 5. Query Real Kubernetes Pod Scaling Events & Delay
+        List<ScalingEvent> scalingEvents = kubernetesService.extractScalingEvents(null, startTime, endTime);
+        Double avgScalingDelay = null;
+        if (!scalingEvents.isEmpty()) {
+            avgScalingDelay = scalingEvents.stream()
+                    .mapToDouble(ScalingEvent::getScalingDelaySeconds)
+                    .average()
+                    .orElse(0.0);
+        }
+
+        // 6. Populate ExperimentResult
+        result.setTotalRequests(totalReqs);
+        result.setSloViolations(sloEval.getViolations());
+        result.setSloViolationRate(sloEval.getViolationRate());
+        result.setP95LatencyMs(effectiveP95);
+        result.setP99LatencyMs(effectiveP99);
         result.setAvgCpuPercent(avgCpu);
         result.setPeakCpuPercent(peakCpu);
-        result.setPeakReplicas(peakReps);
-        result.setAvgReplicas(avgReps);
-        result.setAvgMemoryBytes(256.0 * 1024 * 1024);
-        result.setAvgScalingDelaySeconds(scalingDelay);
+        result.setAvgReplicas(avgReps != null ? avgReps : 1.0);
+        result.setPeakReplicas(Math.max(1, peakReps));
+        result.setAvgMemoryBytes(avgMem);
+        result.setAvgScalingDelaySeconds(avgScalingDelay);
         result.setMae(mae);
         result.setRmse(rmse);
+        result.setScalingEvents(scalingEvents);
 
-        Instant now = Instant.now();
-        Instant trigger = now.minusSeconds((long) scalingDelay);
-        ScalingEvent event = new ScalingEvent("workload-service-pod-scale", trigger, trigger.plusSeconds(3), now, scalingDelay);
-        result.setScalingEvents(Collections.singletonList(event));
+        // 7. Persist raw telemetry and summary files to results/ directory
+        persistRawTelemetry(exp, history, scalingEvents);
+        persistSummary(exp, result);
 
         return result;
+    }
+
+    private void persistRawTelemetry(Experiment exp, LiveMetricsHistoryResponse history, List<ScalingEvent> scalingEvents) {
+        try {
+            java.io.File rawDir = new java.io.File("results/raw/" + exp.getId());
+            if (!rawDir.exists()) {
+                rawDir.mkdirs();
+            }
+            java.io.File rawFile = new java.io.File(rawDir, "telemetry.json");
+            Map<String, Object> rawData = new java.util.LinkedHashMap<>();
+            rawData.put("experimentId", exp.getId());
+            rawData.put("name", exp.getName());
+            rawData.put("scenario", exp.getScenario() != null ? exp.getScenario().name() : "UNKNOWN");
+            rawData.put("controller", exp.getAutoscalingMode() != null ? exp.getAutoscalingMode().name() : "UNKNOWN");
+            rawData.put("startTime", exp.getStartTime() != null ? exp.getStartTime().toString() : null);
+            rawData.put("endTime", exp.getEndTime() != null ? exp.getEndTime().toString() : null);
+            rawData.put("targetRps", exp.getTargetRps());
+            rawData.put("durationSeconds", exp.getDurationSeconds());
+            rawData.put("sloLatencyMs", exp.getSloLatencyMs());
+            rawData.put("requestRate", history.getActualWorkloadSeries());
+            rawData.put("predictedRate", history.getPredictedWorkloadSeries());
+            rawData.put("p95Latency", history.getP95LatencySeries());
+            rawData.put("p99Latency", history.getP99LatencySeries());
+            rawData.put("cpu", history.getCpuUtilizationSeries());
+            rawData.put("memory", history.getMemoryUtilizationSeries());
+            rawData.put("readyReplicas", history.getReplicaSeries());
+            rawData.put("scalingEvents", scalingEvents);
+
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+            mapper.writerWithDefaultPrettyPrinter().writeValue(rawFile, rawData);
+            log.info("Persisted raw telemetry provenance to: {}", rawFile.getAbsolutePath());
+        } catch (Exception ex) {
+            log.warn("Failed persisting raw telemetry JSON for {}: {}", exp.getId(), ex.getMessage());
+        }
+    }
+
+    private void persistSummary(Experiment exp, ExperimentResult res) {
+        try {
+            java.io.File summaryDir = new java.io.File("results/summaries");
+            if (!summaryDir.exists()) {
+                summaryDir.mkdirs();
+            }
+            java.io.File summaryFile = new java.io.File(summaryDir, exp.getId() + ".json");
+            Map<String, Object> sumData = new java.util.LinkedHashMap<>();
+            sumData.put("experimentId", exp.getId());
+            sumData.put("name", exp.getName());
+            sumData.put("scenario", exp.getScenario() != null ? exp.getScenario().name() : "UNKNOWN");
+            sumData.put("controller", exp.getAutoscalingMode() != null ? exp.getAutoscalingMode().name() : "UNKNOWN");
+            sumData.put("startTime", exp.getStartTime() != null ? exp.getStartTime().toString() : null);
+            sumData.put("endTime", exp.getEndTime() != null ? exp.getEndTime().toString() : null);
+            sumData.put("totalRequests", res.getTotalRequests());
+            sumData.put("sloViolations", res.getSloViolations());
+            sumData.put("sloViolationRate", res.getSloViolationRate());
+            sumData.put("p95LatencyMs", res.getP95LatencyMs());
+            sumData.put("p99LatencyMs", res.getP99LatencyMs());
+            sumData.put("avgCpuPercent", res.getAvgCpuPercent());
+            sumData.put("peakCpuPercent", res.getPeakCpuPercent());
+            sumData.put("avgReplicas", res.getAvgReplicas());
+            sumData.put("peakReplicas", res.getPeakReplicas());
+            sumData.put("avgMemoryBytes", res.getAvgMemoryBytes());
+            sumData.put("avgScalingDelaySeconds", res.getAvgScalingDelaySeconds());
+            sumData.put("mae", res.getMae());
+            sumData.put("rmse", res.getRmse());
+
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+            mapper.writerWithDefaultPrettyPrinter().writeValue(summaryFile, sumData);
+            log.info("Persisted summary metrics to: {}", summaryFile.getAbsolutePath());
+        } catch (Exception ex) {
+            log.warn("Failed persisting summary JSON for {}: {}", exp.getId(), ex.getMessage());
+        }
     }
 }

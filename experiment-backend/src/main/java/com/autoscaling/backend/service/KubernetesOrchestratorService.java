@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -330,6 +331,57 @@ public class KubernetesOrchestratorService {
                 .build();
 
         return kubernetesClient.batch().v1().jobs().inNamespace(ns).resource(job).createOrReplace();
+    }
+
+    /**
+     * Extracts genuine pod scaling events by inspecting Kubernetes Pod lifecycle condition timestamps.
+     * D_scale = t_ready - t_trigger
+     */
+    public List<com.autoscaling.backend.model.ScalingEvent> extractScalingEvents(String namespace, java.time.Instant triggerTime, java.time.Instant endTime) {
+        String ns = resolveNamespace(namespace);
+        List<com.autoscaling.backend.model.ScalingEvent> events = new ArrayList<>();
+        try {
+            List<Pod> pods = getWorkloadPods(ns);
+            for (Pod pod : pods) {
+                String podName = pod.getMetadata() != null ? pod.getMetadata().getName() : "unknown";
+                java.time.Instant creationTime = null;
+                if (pod.getMetadata() != null && pod.getMetadata().getCreationTimestamp() != null) {
+                    try {
+                        creationTime = java.time.Instant.parse(pod.getMetadata().getCreationTimestamp());
+                    } catch (Exception ex) {
+                        log.debug("Could not parse pod creation timestamp: {}", ex.getMessage());
+                    }
+                }
+
+                java.time.Instant readyTime = null;
+                if (pod.getStatus() != null && pod.getStatus().getConditions() != null) {
+                    for (var cond : pod.getStatus().getConditions()) {
+                        if ("Ready".equalsIgnoreCase(cond.getType()) && "True".equalsIgnoreCase(cond.getStatus())) {
+                            if (cond.getLastTransitionTime() != null) {
+                                try {
+                                    readyTime = java.time.Instant.parse(cond.getLastTransitionTime());
+                                } catch (Exception ex) {
+                                    log.debug("Could not parse pod ready timestamp: {}", ex.getMessage());
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // If pod became ready after trigger time or was created during the experiment window
+                if (readyTime != null && triggerTime != null) {
+                    if (readyTime.isAfter(triggerTime) || (creationTime != null && creationTime.isAfter(triggerTime))) {
+                        double delaySec = Math.max(0.0, java.time.Duration.between(triggerTime, readyTime).toMillis() / 1000.0);
+                        events.add(new com.autoscaling.backend.model.ScalingEvent(podName, triggerTime, creationTime != null ? creationTime : triggerTime, readyTime, delaySec));
+                        log.info("Captured genuine Pod Ready scaling event: pod={}, t_trigger={}, t_ready={}, D_scale={}s",
+                                podName, triggerTime, readyTime, delaySec);
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Failed extracting Kubernetes scaling events: {}", ex.getMessage());
+        }
+        return events;
     }
 
     /**

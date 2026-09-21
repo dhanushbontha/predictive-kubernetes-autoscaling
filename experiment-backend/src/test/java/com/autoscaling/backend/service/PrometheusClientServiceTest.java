@@ -54,15 +54,39 @@ class PrometheusClientServiceTest {
     }
 
     @Test
-    @DisplayName("fetchHistory builds complete 5-chart telemetry response")
-    void testFetchHistory() {
-        Instant now = Instant.now();
-        LiveMetricsHistoryResponse history = prometheusService.fetchHistory(now.minusSeconds(60), now, "5s");
-        assertNotNull(history);
-        assertNotNull(history.getActualWorkloadSeries());
-        assertNotNull(history.getPredictedWorkloadSeries());
-        assertNotNull(history.getReplicaSeries());
-        assertNotNull(history.getCpuUtilizationSeries());
-        assertNotNull(history.getMemoryUtilizationSeries());
+    @DisplayName("calculateMae and calculateRmse correctly compute accuracy between matching timestamps")
+    void testCalculateMaeAndRmse() {
+        Instant t1 = Instant.parse("2026-09-21T05:00:00Z");
+        Instant t2 = Instant.parse("2026-09-21T05:00:05Z");
+        Instant t3 = Instant.parse("2026-09-21T05:00:10Z");
+
+        List<TimeSeriesPoint> actual = List.of(
+                new TimeSeriesPoint(t1, 50.0),
+                new TimeSeriesPoint(t2, 100.0),
+                new TimeSeriesPoint(t3, 150.0)
+        );
+
+        List<TimeSeriesPoint> pred = List.of(
+                new TimeSeriesPoint(t1, 52.0), // error = 2
+                new TimeSeriesPoint(t2, 95.0),  // error = 5
+                new TimeSeriesPoint(t3, 154.0)  // error = 4
+        );
+
+        Double mae = prometheusService.calculateMae(actual, pred);
+        Double rmse = prometheusService.calculateRmse(actual, pred);
+
+        assertNotNull(mae);
+        assertNotNull(rmse);
+        // MAE = (2 + 5 + 4) / 3 = 11 / 3 = 3.6666...
+        assertEquals(3.666, mae, 0.01);
+        // RMSE = sqrt((4 + 25 + 16) / 3) = sqrt(45 / 3) = sqrt(15) = 3.8729...
+        assertEquals(3.873, rmse, 0.01);
+    }
+
+    @Test
+    @DisplayName("calculateMae returns null when no matching points exist")
+    void testCalculateMaeEmpty() {
+        Double mae = prometheusService.calculateMae(List.of(), List.of());
+        org.junit.jupiter.api.Assertions.assertNull(mae);
     }
 }

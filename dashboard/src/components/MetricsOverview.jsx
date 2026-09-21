@@ -66,12 +66,12 @@ export default function MetricsOverview({ currentMetrics }) {
     },
     {
       title: 'Prophet Accuracy',
-      value: `MAE ${mae.toFixed(2)} · RMSE ${rmse.toFixed(2)}`,
-      subtext: 'In-sample residual error across 15m window',
+      value: `MAE ${mae ? mae.toFixed(2) : '—'} · RMSE ${rmse ? rmse.toFixed(2) : '—'}`,
+      subtext: 'Out-of-sample forecast evaluation error',
       icon: TrendingUp,
       accent: '#06b6d4',
-      badgeText: 'ONLINE',
-      badgeClass: 'badge-cyan',
+      badgeText: mae != null ? 'EVALUATED' : 'READY',
+      badgeClass: mae != null ? 'badge-cyan' : 'badge-zinc',
     },
   ];
 

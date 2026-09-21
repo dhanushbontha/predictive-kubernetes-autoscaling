@@ -39,170 +39,96 @@ public class BenchmarkMatrixRunner {
     }
 
     /**
-     * Executes or seeds the complete 10-run benchmark matrix (5 scenarios x 2 autoscaling modes)
-     * and persists all telemetry to PostgreSQL.
+     * Aggregates and summarizes genuine completed benchmark experiments from PostgreSQL.
+     * Never generates fake or seeded results.
      */
     public BenchmarkMatrixSummaryResponse runOrSeedMatrix() {
-        log.info("Initiating comprehensive 10-run benchmark matrix generation...");
+        log.info("Aggregating genuine completed benchmark experiments from database...");
 
         WorkloadScenario[] scenarios = WorkloadScenario.values();
-        AutoscalingMode[] modes = new AutoscalingMode[]{AutoscalingMode.REACTIVE_HPA, AutoscalingMode.PREDICTIVE_PROPHET_KEDA};
-
         List<ExperimentResponse> allRuns = new ArrayList<>();
         List<ComparisonResponse> scenarioComparisons = new ArrayList<>();
 
-        Instant now = Instant.now();
+        List<ExperimentEntity> dbList = experimentRepository.findAllByOrderByStartTimeDesc();
+        List<Experiment> completedExpList = new ArrayList<>();
+        if (dbList != null) {
+            for (ExperimentEntity entity : dbList) {
+                Experiment exp = entity.toDomain();
+                if (exp.getStatus() == ExperimentStatus.COMPLETED && exp.getResult() != null) {
+                    completedExpList.add(exp);
+                }
+            }
+        }
 
         for (WorkloadScenario scenario : scenarios) {
-            String hpaId = "mat_" + scenario.name().toLowerCase() + "_hpa";
-            String kedaId = "mat_" + scenario.name().toLowerCase() + "_keda";
+            Experiment hpaExp = completedExpList.stream()
+                    .filter(e -> e.getScenario() == scenario && e.getAutoscalingMode() == AutoscalingMode.REACTIVE_HPA)
+                    .findFirst()
+                    .orElse(null);
 
-            // Reactive HPA Run
-            Experiment hpaExp = createOrUpdateMatrixExperiment(hpaId, scenario, AutoscalingMode.REACTIVE_HPA, now);
-            lifecycleService.registerExperiment(hpaExp);
-            allRuns.add(ExperimentResponse.fromDomain(hpaExp));
+            Experiment kedaExp = completedExpList.stream()
+                    .filter(e -> e.getScenario() == scenario && e.getAutoscalingMode() == AutoscalingMode.PREDICTIVE_PROPHET_KEDA)
+                    .findFirst()
+                    .orElse(null);
 
-            // Predictive Prophet + KEDA Run
-            Experiment kedaExp = createOrUpdateMatrixExperiment(kedaId, scenario, AutoscalingMode.PREDICTIVE_PROPHET_KEDA, now);
-            lifecycleService.registerExperiment(kedaExp);
-            allRuns.add(ExperimentResponse.fromDomain(kedaExp));
+            if (hpaExp != null) {
+                allRuns.add(ExperimentResponse.fromDomain(hpaExp));
+            }
+            if (kedaExp != null) {
+                allRuns.add(ExperimentResponse.fromDomain(kedaExp));
+            }
 
-            // Compute Scenario Comparison
-            ComparisonResponse comparison = lifecycleService.compareExperiments(hpaExp, kedaExp);
-            scenarioComparisons.add(comparison);
+            if (hpaExp != null && kedaExp != null) {
+                ComparisonResponse comparison = lifecycleService.compareExperiments(hpaExp, kedaExp);
+                scenarioComparisons.add(comparison);
+            }
         }
 
-        // Calculate Overall Academic Aggregate Metrics
-        double totalP95RedPct = 0.0;
-        double totalSloRedPct = 0.0;
-        double totalDelayGain = 0.0;
-        int count = scenarioComparisons.size();
+        // Calculate Overall Academic Aggregate Metrics across completed pairs
+        Double avgP95Red = null;
+        Double avgSloRed = null;
+        Double avgDelayGain = null;
+        String conclusion;
 
-        for (ComparisonResponse cmp : scenarioComparisons) {
-            if (cmp.getP95ReductionPercent() != null) totalP95RedPct += cmp.getP95ReductionPercent();
-            if (cmp.getSloViolationRateReductionPercent() != null) totalSloRedPct += cmp.getSloViolationRateReductionPercent();
-            if (cmp.getScalingDelayImprovementSeconds() != null) totalDelayGain += cmp.getScalingDelayImprovementSeconds();
+        int pairedCount = scenarioComparisons.size();
+        if (pairedCount > 0) {
+            double totalP95RedPct = 0.0;
+            double totalSloRedPct = 0.0;
+            double totalDelayGain = 0.0;
+
+            for (ComparisonResponse cmp : scenarioComparisons) {
+                if (cmp.getP95ReductionPercent() != null) totalP95RedPct += cmp.getP95ReductionPercent();
+                if (cmp.getSloViolationRateReductionPercent() != null) totalSloRedPct += cmp.getSloViolationRateReductionPercent();
+                if (cmp.getScalingDelayImprovementSeconds() != null) totalDelayGain += cmp.getScalingDelayImprovementSeconds();
+            }
+
+            avgP95Red = Math.round((totalP95RedPct / pairedCount) * 10.0) / 10.0;
+            avgSloRed = Math.round((totalSloRedPct / pairedCount) * 10.0) / 10.0;
+            avgDelayGain = Math.round((totalDelayGain / pairedCount) * 10.0) / 10.0;
+
+            conclusion = String.format(
+                    "Across %d evaluated scenario pair(s), Predictive Autoscaling (Meta Prophet + KEDA) demonstrated an average P95 latency reduction of %.1f%%, eliminated %.1f%% of SLO violations, and provided an average scaling lead-time advantage of %.1f seconds over Reactive Kubernetes HPA.",
+                    pairedCount, avgP95Red, avgSloRed, avgDelayGain
+            );
+        } else {
+            conclusion = "No completed paired benchmark runs recorded yet. Launch both Reactive (HPA) and Predictive (KEDA) experiments to generate empirical evaluations.";
         }
-
-        double avgP95Red = count > 0 ? Math.round((totalP95RedPct / count) * 10.0) / 10.0 : 0.0;
-        double avgSloRed = count > 0 ? Math.round((totalSloRedPct / count) * 10.0) / 10.0 : 0.0;
-        double avgDelayGain = count > 0 ? Math.round((totalDelayGain / count) * 10.0) / 10.0 : 0.0;
-
-        String conclusion = String.format(
-                "Across all 5 evaluation scenarios, Predictive Autoscaling (Meta Prophet + KEDA) demonstrated an average P95 latency reduction of %.1f%%, eliminated %.1f%% of SLO violations, and provided an average scaling lead-time advantage of %.1f seconds over Reactive Kubernetes HPA.",
-                avgP95Red, avgSloRed, avgDelayGain
-        );
 
         BenchmarkMatrixSummaryResponse summary = new BenchmarkMatrixSummaryResponse(
                 Instant.now(),
                 scenarios.length,
                 allRuns.size(),
-                avgP95Red,
-                avgSloRed,
-                avgDelayGain,
+                avgP95Red != null ? avgP95Red : 0.0,
+                avgSloRed != null ? avgSloRed : 0.0,
+                avgDelayGain != null ? avgDelayGain : 0.0,
                 conclusion,
                 scenarioComparisons,
                 allRuns
         );
 
-        log.info("Benchmark Matrix successfully generated: {} scenarios, {} total runs evaluated.", scenarios.length, allRuns.size());
+        log.info("Benchmark Matrix summarized: {} scenarios, {} total completed runs, {} paired evaluations.",
+                scenarios.length, allRuns.size(), pairedCount);
         return summary;
-    }
-
-    private Experiment createOrUpdateMatrixExperiment(String id, WorkloadScenario scenario, AutoscalingMode mode, Instant baseTime) {
-        Experiment exp = new Experiment();
-        exp.setId(id);
-        exp.setName("Matrix_" + scenario.name() + "_" + (mode == AutoscalingMode.REACTIVE_HPA ? "ReactiveHPA" : "PredictiveKEDA"));
-        exp.setScenario(scenario);
-        exp.setAutoscalingMode(mode);
-        exp.setTargetRps(150);
-        exp.setDurationSeconds(120);
-        exp.setSloLatencyMs(200);
-        exp.setForecastHorizonSeconds(120);
-        exp.setStatus(ExperimentStatus.COMPLETED);
-        exp.setStartTime(baseTime.minusSeconds(120));
-        exp.setEndTime(baseTime);
-
-        // Inject calculated metrics through reflection or domain calculation
-        ExperimentResult res = calculateResult(scenario, mode);
-        exp.setResult(res);
-
-        // Persist to PostgreSQL database
-        try {
-            Optional<ExperimentEntity> existingOpt = experimentRepository.findById(id);
-            ExperimentEntity entity = ExperimentEntity.fromDomain(exp);
-            if (existingOpt.isPresent() && existingOpt.get().getResult() != null && entity.getResult() != null) {
-                entity.getResult().setId(existingOpt.get().getResult().getId());
-            }
-            experimentRepository.save(entity);
-        } catch (Exception ex) {
-            log.warn("Database persist notice for {}: {}", id, ex.getMessage());
-        }
-
-        return exp;
-    }
-
-    private ExperimentResult calculateResult(WorkloadScenario scenario, AutoscalingMode mode) {
-        ExperimentResult result = new ExperimentResult();
-        long totalReqs = 150L * 120L;
-        result.setTotalRequests(totalReqs);
-
-        boolean isPredictive = mode == AutoscalingMode.PREDICTIVE_PROPHET_KEDA;
-        double p95 = 50.0, p99 = 80.0, sloRate = 0.0, avgCpu = 45.0, peakCpu = 65.0, avgReps = 2.0, delay = 5.0;
-        int peakReps = 3;
-        Double mae = null, rmse = null;
-
-        switch (scenario) {
-            case BURSTY -> {
-                if (isPredictive) {
-                    p95 = 74.5; p99 = 108.2; sloRate = 0.008; avgCpu = 44.2; peakCpu = 62.0; peakReps = 5; avgReps = 3.2; delay = 3.2; mae = 1.18; rmse = 1.94;
-                } else {
-                    p95 = 248.5; p99 = 365.0; sloRate = 0.142; avgCpu = 68.4; peakCpu = 94.5; peakReps = 4; avgReps = 2.4; delay = 28.5;
-                }
-            }
-            case PERIODIC -> {
-                if (isPredictive) {
-                    p95 = 52.4; p99 = 78.0; sloRate = 0.002; avgCpu = 42.0; peakCpu = 58.0; peakReps = 4; avgReps = 2.8; delay = 2.1; mae = 0.85; rmse = 1.42;
-                } else {
-                    p95 = 210.5; p99 = 295.0; sloRate = 0.118; avgCpu = 68.0; peakCpu = 91.0; peakReps = 4; avgReps = 2.2; delay = 24.0;
-                }
-            }
-            case GRADUAL -> {
-                if (isPredictive) {
-                    p95 = 48.2; p99 = 71.0; sloRate = 0.0; avgCpu = 41.5; peakCpu = 55.0; peakReps = 4; avgReps = 2.6; delay = 2.5; mae = 0.92; rmse = 1.55;
-                } else {
-                    p95 = 115.0; p99 = 165.0; sloRate = 0.032; avgCpu = 58.0; peakCpu = 78.0; peakReps = 3; avgReps = 2.1; delay = 18.0;
-                }
-            }
-            case NOISY -> {
-                if (isPredictive) {
-                    p95 = 68.5; p99 = 98.0; sloRate = 0.006; avgCpu = 44.0; peakCpu = 60.0; peakReps = 4; avgReps = 2.7; delay = 4.0; mae = 2.15; rmse = 3.08;
-                } else {
-                    p95 = 195.0; p99 = 280.0; sloRate = 0.095; avgCpu = 66.5; peakCpu = 88.0; peakReps = 4; avgReps = 2.3; delay = 22.0;
-                }
-            }
-            case STABLE -> {
-                if (isPredictive) {
-                    p95 = 42.0; p99 = 60.0; sloRate = 0.0; avgCpu = 46.0; peakCpu = 52.0; peakReps = 2; avgReps = 1.8; delay = 1.5; mae = 0.45; rmse = 0.78;
-                } else {
-                    p95 = 45.0; p99 = 65.0; sloRate = 0.0; avgCpu = 48.0; peakCpu = 54.0; peakReps = 2; avgReps = 1.8; delay = 12.0;
-                }
-            }
-        }
-
-        result.setP95LatencyMs(p95);
-        result.setP99LatencyMs(p99);
-        result.setSloViolationRate(sloRate);
-        result.setSloViolations((long) (totalReqs * sloRate));
-        result.setAvgCpuPercent(avgCpu);
-        result.setPeakCpuPercent(peakCpu);
-        result.setPeakReplicas(peakReps);
-        result.setAvgReplicas(avgReps);
-        result.setAvgMemoryBytes(256.0 * 1024 * 1024);
-        result.setAvgScalingDelaySeconds(delay);
-        result.setMae(mae);
-        result.setRmse(rmse);
-        return result;
     }
 
     /**

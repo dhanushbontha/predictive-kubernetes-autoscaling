@@ -93,3 +93,46 @@ def test_constant_workload_series(test_forecaster):
     for p in points:
         # Prediction should be close to 50.0
         assert 45.0 <= p.predicted_rps <= 55.0
+
+
+def test_rolling_forecast_ledger_out_of_sample_evaluation():
+    """
+    Verify that RollingForecastLedger strictly evaluates predictions out-of-sample
+    and computes authentic MAE / RMSE.
+    """
+    from app.model import RollingForecastLedger
+    from app.schemas import ForecastPoint
+
+    ledger = RollingForecastLedger()
+    t0 = datetime(2026, 9, 21, 10, 0, 0)
+    t1 = datetime(2026, 9, 21, 10, 0, 30)
+    t2 = datetime(2026, 9, 21, 10, 1, 0)
+
+    # Make predictions at t0 for t1 (100 RPS) and t2 (150 RPS)
+    pts = [
+        ForecastPoint(timestamp=t1, predicted_rps=100.0, lower_bound=80.0, upper_bound=120.0),
+        ForecastPoint(timestamp=t2, predicted_rps=150.0, lower_bound=120.0, upper_bound=180.0),
+    ]
+    ledger.record_predictions(pts, horizon_seconds=60)
+
+    # Initial state: 0 evaluated pairs
+    count, mae, rmse, _ = ledger.get_accuracy()
+    assert count == 0
+    assert mae is None
+    assert rmse is None
+
+    # Actual telemetry arrives later at t1 (105 RPS) and t2 (146 RPS)
+    df = pd.DataFrame({
+        "ds": [t1, t2],
+        "y": [105.0, 146.0],
+    })
+    ledger.match_observations(df)
+
+    count, mae, rmse, last_eval = ledger.get_accuracy()
+    assert count == 2
+    # Errors: |105 - 100| = 5, |146 - 150| = 4 -> MAE = 4.5
+    assert mae == 4.5
+    # RMSE: sqrt((25 + 16) / 2) = sqrt(20.5) = 4.5277
+    assert abs(rmse - 4.5277) < 0.01
+    assert last_eval is not None
+

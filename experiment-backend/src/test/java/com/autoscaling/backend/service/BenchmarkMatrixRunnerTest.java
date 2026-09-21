@@ -38,34 +38,30 @@ class BenchmarkMatrixRunnerTest {
     }
 
     @Test
-    void testRunOrSeedMatrix_CalculatesAllScenariosAndRuns() {
-        when(experimentRepository.findById(any())).thenReturn(Optional.empty());
+    void testRunOrSeedMatrix_EmptyDatabase_ReturnsEmptySummary() {
+        when(experimentRepository.findAllByOrderByStartTimeDesc()).thenReturn(java.util.Collections.emptyList());
 
         BenchmarkMatrixSummaryResponse summary = matrixRunner.runOrSeedMatrix();
 
         assertNotNull(summary);
         assertEquals(5, summary.getTotalScenarios());
-        assertEquals(10, summary.getTotalRuns());
-        assertEquals(5, summary.getScenarioComparisons().size());
-        assertEquals(10, summary.getAllRuns().size());
-
-        assertTrue(summary.getOverallAverageP95ReductionPercent() > 50.0);
-        assertTrue(summary.getOverallAverageSloReductionPercent() > 70.0);
-        assertTrue(summary.getOverallAverageScalingLeadTimeGainSeconds() > 10.0);
+        assertEquals(0, summary.getTotalRuns());
+        assertEquals(0, summary.getScenarioComparisons().size());
+        assertEquals(0, summary.getAllRuns().size());
+        assertEquals(0.0, summary.getOverallAverageP95ReductionPercent());
         assertNotNull(summary.getBenchmarkConclusion());
+        assertTrue(summary.getBenchmarkConclusion().contains("No completed paired benchmark runs recorded yet"));
     }
 
     @Test
-    void testGenerateCsvSummary_ProducesValidHeaderAndRows() {
-        when(experimentRepository.findById(any())).thenReturn(Optional.empty());
+    void testGenerateCsvSummary_EmptySummary_ProducesValidHeaderOnly() {
+        when(experimentRepository.findAllByOrderByStartTimeDesc()).thenReturn(java.util.Collections.emptyList());
 
         BenchmarkMatrixSummaryResponse summary = matrixRunner.runOrSeedMatrix();
         String csv = matrixRunner.generateCsvSummary(summary);
 
         assertNotNull(csv);
         assertTrue(csv.startsWith("Scenario,Mode,P95_Latency_ms"));
-        assertTrue(csv.contains("BURSTY,REACTIVE_HPA"));
-        assertTrue(csv.contains("BURSTY,PREDICTIVE_PROPHET_KEDA"));
-        assertTrue(csv.contains("PERIODIC,PREDICTIVE_PROPHET_KEDA"));
+        assertEquals(1, csv.trim().split("\n").length); // Only the CSV header row
     }
 }

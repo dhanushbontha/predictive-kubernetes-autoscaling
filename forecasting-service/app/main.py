@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.metrics import get_latest_metrics, PREDICTED_RPS_GAUGE
-from app.schemas import ForecastResponse, HealthResponse, TrainRequest, TrainResponse
+from app.schemas import AccuracyResponse, ForecastResponse, HealthResponse, TrainRequest, TrainResponse
 from app.service import forecasting_service
 
 # Configure root logger
@@ -101,6 +101,23 @@ async def get_forecast():
     )
 
 
+@app.get("/api/forecast/accuracy", response_model=AccuracyResponse, summary="Get Out-of-Sample Forecast Accuracy")
+async def get_forecast_accuracy():
+    """
+    Retrieve genuine out-of-sample forecast accuracy evaluated against actual future telemetry.
+    """
+    count, mae, rmse, last_eval = forecasting_service.forecaster.ledger.get_accuracy()
+    status_str = "EVALUATED" if count > 0 else "INSUFFICIENT_OUT_OF_SAMPLE_DATA"
+
+    return AccuracyResponse(
+        status=status_str,
+        evaluated_pairs=count,
+        mae=mae,
+        rmse=rmse,
+        last_evaluated_at=last_eval,
+    )
+
+
 @app.post("/api/train", response_model=TrainResponse, summary="Trigger Manual Model Retraining")
 async def trigger_training(req: TrainRequest = TrainRequest()):
     """
@@ -115,6 +132,7 @@ async def trigger_training(req: TrainRequest = TrainRequest()):
         raise HTTPException(status_code=500, detail=response.message)
 
     return response
+
 
 
 if __name__ == "__main__":

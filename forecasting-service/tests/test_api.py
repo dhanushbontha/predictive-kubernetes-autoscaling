@@ -68,3 +68,15 @@ def test_manual_train_endpoint(mock_fetch, client: TestClient, mock_workload_df:
     metrics_res = client.get("/metrics")
     assert "forecast_model_mae" in metrics_res.text
     assert "forecast_model_rmse" in metrics_res.text
+
+
+def test_get_forecast_accuracy_endpoint(client: TestClient):
+    """
+    Test GET /api/forecast/accuracy returns authentic out-of-sample evaluated state.
+    """
+    response = client.get("/api/forecast/accuracy")
+    assert response.status_code == 200
+    data = response.json()
+    assert "status" in data
+    assert "evaluated_pairs" in data
+

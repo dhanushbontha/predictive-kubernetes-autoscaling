@@ -176,10 +176,166 @@ public class PrometheusClientService {
         history.setActualWorkloadSeries(queryRange(QUERY_ACTUAL_RPS, start, end, step));
         history.setPredictedWorkloadSeries(queryRange(QUERY_PREDICTED_RPS, start, end, step));
         history.setReplicaSeries(queryRange(QUERY_REPLICAS, start, end, step));
-        history.setCpuUtilizationSeries(queryRange(QUERY_CPU_PERCENT, start, end, step));
+        
+        List<TimeSeriesPoint> cpuPoints = queryRange(QUERY_CPU_PERCENT, start, end, step);
+        if (cpuPoints.isEmpty() || cpuPoints.stream().allMatch(p -> p.getValue() == 0.0)) {
+            cpuPoints = queryRange(QUERY_CPU_FALLBACK, start, end, step);
+        }
+        history.setCpuUtilizationSeries(cpuPoints);
+        
         history.setMemoryUtilizationSeries(queryRange(QUERY_MEMORY_BYTES, start, end, step));
         history.setP95LatencySeries(queryRange(QUERY_P95_LATENCY, start, end, step));
         history.setP99LatencySeries(queryRange(QUERY_P99_LATENCY, start, end, step));
         return history;
+    }
+
+    /**
+     * Calculates total requests observed across the experiment time window [start, end].
+     */
+    public long calculateTotalRequests(Instant start, Instant end, List<TimeSeriesPoint> actualRatePoints) {
+        long durationSec = Math.max(1, end.getEpochSecond() - start.getEpochSecond());
+        String query = String.format("sum(increase(http_server_requests_seconds_count{job=\"workload-service\", uri=\"/api/workload\"}[%ds]))", durationSec);
+        Double totalInc = queryScalar(query);
+        if (totalInc != null && totalInc > 0.0) {
+            return Math.round(totalInc);
+        }
+
+        // Numerical integration fallback: sum(rate * dt)
+        if (actualRatePoints != null && !actualRatePoints.isEmpty()) {
+            double integrated = 0.0;
+            for (int i = 0; i < actualRatePoints.size() - 1; i++) {
+                TimeSeriesPoint p1 = actualRatePoints.get(i);
+                TimeSeriesPoint p2 = actualRatePoints.get(i + 1);
+                long dt = p2.getTimestamp().getEpochSecond() - p1.getTimestamp().getEpochSecond();
+                if (dt > 0 && dt <= 30) {
+                    integrated += ((p1.getValue() + p2.getValue()) / 2.0) * dt;
+                }
+            }
+            if (integrated > 0.0) {
+                return Math.round(integrated);
+            }
+        }
+        return 0L;
+    }
+
+    /**
+     * Calculates SLO violations and breach rate (> sloLatencyMs) over [start, end].
+     */
+    public SloEvaluationResult calculateSloViolations(Instant start, Instant end, double sloLatencyMs, long totalRequests) {
+        if (totalRequests <= 0) {
+            return new SloEvaluationResult(0L, 0.0);
+        }
+        long durationSec = Math.max(1, end.getEpochSecond() - start.getEpochSecond());
+        // Standard Prometheus / Micrometer bucket for 200ms is le="0.2"
+        String bucketLe = (sloLatencyMs <= 200) ? "0.2" : String.format("%.2f", sloLatencyMs / 1000.0);
+        String query = String.format("sum(increase(http_server_requests_seconds_bucket{job=\"workload-service\", uri=\"/api/workload\", le=\"%s\"}[%ds]))", bucketLe, durationSec);
+        
+        Double underSloInc = queryScalar(query);
+        if (underSloInc != null && underSloInc >= 0.0) {
+            long underSlo = Math.round(underSloInc);
+            long violations = Math.max(0L, totalRequests - underSlo);
+            double rate = (double) violations / totalRequests;
+            return new SloEvaluationResult(violations, Math.min(1.0, Math.max(0.0, rate)));
+        }
+
+        return new SloEvaluationResult(0L, 0.0);
+    }
+
+    public static class SloEvaluationResult {
+        private final long violations;
+        private final double violationRate;
+
+        public SloEvaluationResult(long violations, double violationRate) {
+            this.violations = violations;
+            this.violationRate = violationRate;
+        }
+
+        public long getViolations() {
+            return violations;
+        }
+
+        public double getViolationRate() {
+            return violationRate;
+        }
+    }
+
+    public Double calculateAverage(List<TimeSeriesPoint> points) {
+        if (points == null || points.isEmpty()) return null;
+        double sum = 0.0;
+        for (TimeSeriesPoint p : points) {
+            sum += p.getValue();
+        }
+        return sum / points.size();
+    }
+
+    public Double calculatePeak(List<TimeSeriesPoint> points) {
+        if (points == null || points.isEmpty()) return null;
+        double max = -Double.MAX_VALUE;
+        for (TimeSeriesPoint p : points) {
+            if (p.getValue() > max) max = p.getValue();
+        }
+        return max >= 0 ? max : null;
+    }
+
+    /**
+     * Calculates out-of-sample MAE between actual workload series and forward predicted series.
+     */
+    public Double calculateMae(List<TimeSeriesPoint> actual, List<TimeSeriesPoint> predicted) {
+        if (actual == null || predicted == null || actual.isEmpty() || predicted.isEmpty()) {
+            return null;
+        }
+        double sumAbsErr = 0.0;
+        int matched = 0;
+
+        for (TimeSeriesPoint act : actual) {
+            long actSec = act.getTimestamp().getEpochSecond();
+            // Find closest matching prediction within 5 seconds
+            TimeSeriesPoint closest = null;
+            long minDiff = Long.MAX_VALUE;
+            for (TimeSeriesPoint pred : predicted) {
+                long diff = Math.abs(pred.getTimestamp().getEpochSecond() - actSec);
+                if (diff < minDiff && diff <= 5) {
+                    minDiff = diff;
+                    closest = pred;
+                }
+            }
+            if (closest != null) {
+                sumAbsErr += Math.abs(act.getValue() - closest.getValue());
+                matched++;
+            }
+        }
+
+        return (matched > 0) ? (sumAbsErr / matched) : null;
+    }
+
+    /**
+     * Calculates out-of-sample RMSE between actual workload series and forward predicted series.
+     */
+    public Double calculateRmse(List<TimeSeriesPoint> actual, List<TimeSeriesPoint> predicted) {
+        if (actual == null || predicted == null || actual.isEmpty() || predicted.isEmpty()) {
+            return null;
+        }
+        double sumSqErr = 0.0;
+        int matched = 0;
+
+        for (TimeSeriesPoint act : actual) {
+            long actSec = act.getTimestamp().getEpochSecond();
+            TimeSeriesPoint closest = null;
+            long minDiff = Long.MAX_VALUE;
+            for (TimeSeriesPoint pred : predicted) {
+                long diff = Math.abs(pred.getTimestamp().getEpochSecond() - actSec);
+                if (diff < minDiff && diff <= 5) {
+                    minDiff = diff;
+                    closest = pred;
+                }
+            }
+            if (closest != null) {
+                double diff = act.getValue() - closest.getValue();
+                sumSqErr += (diff * diff);
+                matched++;
+            }
+        }
+
+        return (matched > 0) ? Math.sqrt(sumSqErr / matched) : null;
     }
 }

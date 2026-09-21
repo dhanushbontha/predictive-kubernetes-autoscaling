@@ -30,114 +30,10 @@ export default function HistoryView({ history = [], onRefresh }) {
   const [selectedExp, setSelectedExp] = useState(null);
   const [copiedJson, setCopiedJson] = useState(false);
 
-  // Fallback default mock history if empty
-  const defaultHistory = useMemo(() => [
-    {
-      id: 'mat_bursty_keda',
-      name: 'Matrix_BURSTY_PredictiveKEDA',
-      scenario: 'BURSTY',
-      autoscalingMode: 'PREDICTIVE_PROPHET_KEDA',
-      targetRps: 150,
-      durationSeconds: 120,
-      sloLatencyMs: 200,
-      forecastHorizonSeconds: 120,
-      status: 'COMPLETED',
-      startTime: new Date(Date.now() - 3600000).toISOString(),
-      endTime: new Date(Date.now() - 3480000).toISOString(),
-      result: {
-        p95LatencyMs: 74.5,
-        p99LatencyMs: 108.2,
-        sloViolations: 144,
-        sloViolationRate: 0.008,
-        avgCpuPercent: 44.2,
-        peakCpuPercent: 62.0,
-        peakReplicas: 5,
-        avgReplicas: 3.2,
-        avgScalingDelaySeconds: 3.2,
-        mae: 1.18,
-        rmse: 1.94,
-        totalRequests: 18000,
-      },
-    },
-    {
-      id: 'mat_bursty_hpa',
-      name: 'Matrix_BURSTY_ReactiveHPA',
-      scenario: 'BURSTY',
-      autoscalingMode: 'REACTIVE_HPA',
-      targetRps: 150,
-      durationSeconds: 120,
-      sloLatencyMs: 200,
-      status: 'COMPLETED',
-      startTime: new Date(Date.now() - 7200000).toISOString(),
-      endTime: new Date(Date.now() - 7080000).toISOString(),
-      result: {
-        p95LatencyMs: 248.5,
-        p99LatencyMs: 365.0,
-        sloViolations: 2556,
-        sloViolationRate: 0.142,
-        avgCpuPercent: 68.4,
-        peakCpuPercent: 94.5,
-        peakReplicas: 4,
-        avgReplicas: 2.4,
-        avgScalingDelaySeconds: 28.5,
-        totalRequests: 18000,
-      },
-    },
-    {
-      id: 'mat_periodic_keda',
-      name: 'Matrix_PERIODIC_PredictiveKEDA',
-      scenario: 'PERIODIC',
-      autoscalingMode: 'PREDICTIVE_PROPHET_KEDA',
-      targetRps: 150,
-      durationSeconds: 120,
-      sloLatencyMs: 200,
-      status: 'COMPLETED',
-      startTime: new Date(Date.now() - 10800000).toISOString(),
-      endTime: new Date(Date.now() - 10680000).toISOString(),
-      result: {
-        p95LatencyMs: 52.4,
-        p99LatencyMs: 78.0,
-        sloViolations: 36,
-        sloViolationRate: 0.002,
-        avgCpuPercent: 42.0,
-        peakCpuPercent: 58.0,
-        peakReplicas: 4,
-        avgReplicas: 2.8,
-        avgScalingDelaySeconds: 2.1,
-        mae: 0.85,
-        rmse: 1.42,
-        totalRequests: 18000,
-      },
-    },
-    {
-      id: 'mat_periodic_hpa',
-      name: 'Matrix_PERIODIC_ReactiveHPA',
-      scenario: 'PERIODIC',
-      autoscalingMode: 'REACTIVE_HPA',
-      targetRps: 150,
-      durationSeconds: 120,
-      sloLatencyMs: 200,
-      status: 'COMPLETED',
-      startTime: new Date(Date.now() - 14400000).toISOString(),
-      endTime: new Date(Date.now() - 14280000).toISOString(),
-      result: {
-        p95LatencyMs: 210.5,
-        p99LatencyMs: 295.0,
-        sloViolations: 2124,
-        sloViolationRate: 0.118,
-        avgCpuPercent: 68.0,
-        peakCpuPercent: 91.0,
-        peakReplicas: 4,
-        avgReplicas: 2.2,
-        avgScalingDelaySeconds: 24.0,
-        totalRequests: 18000,
-      },
-    },
-  ], []);
-
+  // Use genuine history passed from backend API
   const items = useMemo(() => {
-    return history && history.length > 0 ? history : defaultHistory;
-  }, [history, defaultHistory]);
+    return Array.isArray(history) ? history : [];
+  }, [history]);
 
   // Filtered experiments
   const filteredItems = useMemo(() => {
@@ -162,7 +58,7 @@ export default function HistoryView({ history = [], onRefresh }) {
     });
   }, [items, searchTerm, scenarioFilter, modeFilter, statusFilter]);
 
-  // Summary Aggregate Stats
+  // Summary Aggregate Stats from actual completed runs
   const stats = useMemo(() => {
     const total = items.length;
     const completed = items.filter((i) => i.status === 'COMPLETED').length;
@@ -207,11 +103,16 @@ export default function HistoryView({ history = [], onRefresh }) {
 
   return (
     <div>
-      {/* Top Aggregate KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+      {/* Top Stat Cards */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '1rem',
+        marginBottom: '1.5rem'
+      }}>
         <div className="glass-panel" style={{ padding: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Total Audit Records</span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Total Experiments</span>
             <Database size={16} color="#8b5cf6" />
           </div>
           <div style={{ fontSize: '1.6rem', fontWeight: 700, marginTop: '0.25rem', color: '#ffffff' }}>
@@ -241,10 +142,10 @@ export default function HistoryView({ history = [], onRefresh }) {
             <Zap size={16} color="#06b6d4" />
           </div>
           <div style={{ fontSize: '1.6rem', fontWeight: 700, marginTop: '0.25rem', color: '#06b6d4' }}>
-            {stats.avgP95} ms
+            {stats.avgP95 !== '—' ? `${stats.avgP95} ms` : '—'}
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-            Across all evaluated workloads
+            Across completed benchmark runs
           </div>
         </div>
 
@@ -257,7 +158,7 @@ export default function HistoryView({ history = [], onRefresh }) {
             {stats.totalReqs.toLocaleString()}
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-            Simulated synthetic telemetry
+            Observed in completed experiments
           </div>
         </div>
       </div>
@@ -693,13 +594,13 @@ export default function HistoryView({ history = [], onRefresh }) {
                   <div>
                     <span style={{ color: 'var(--text-secondary)' }}>Mean Absolute Error (MAE): </span>
                     <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: '#ffffff' }}>
-                      {selectedExp.result?.mae ? `${selectedExp.result.mae.toFixed(2)} RPS` : '1.18 RPS'}
+                      {selectedExp.result?.mae != null ? `${selectedExp.result.mae.toFixed(2)} RPS` : '—'}
                     </span>
                   </div>
                   <div>
                     <span style={{ color: 'var(--text-secondary)' }}>Root Mean Squared Error (RMSE): </span>
                     <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: '#ffffff' }}>
-                      {selectedExp.result?.rmse ? `${selectedExp.result.rmse.toFixed(2)} RPS` : '1.94 RPS'}
+                      {selectedExp.result?.rmse != null ? `${selectedExp.result.rmse.toFixed(2)} RPS` : '—'}
                     </span>
                   </div>
                 </div>

@@ -59,3 +59,15 @@ class HealthResponse(BaseModel):
     model_ready: bool = Field(..., description="True if at least one forecast cycle has executed")
     last_trained_at: Optional[datetime] = Field(None, description="Timestamp of the last successful model fit")
     current_predicted_rps: float = Field(..., description="Current value of the predicted RPS gauge")
+
+
+class AccuracyResponse(BaseModel):
+    """
+    Genuine out-of-sample forecast accuracy response evaluated against real future telemetry.
+    """
+    status: str = Field(..., description="Status of accuracy evaluation (e.g. 'EVALUATED', 'INSUFFICIENT_OUT_OF_SAMPLE_DATA')")
+    evaluated_pairs: int = Field(..., description="Count of matched out-of-sample prediction/observation pairs")
+    mae: Optional[float] = Field(None, description="Out-of-sample Mean Absolute Error")
+    rmse: Optional[float] = Field(None, description="Out-of-sample Root Mean Squared Error")
+    last_evaluated_at: Optional[datetime] = Field(None, description="Timestamp of the most recent evaluation")
+
