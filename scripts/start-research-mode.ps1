@@ -8,18 +8,29 @@ Write-Host "====================================================================
 $baseDir = Split-Path -Parent $PSScriptRoot
 $ErrorActionPreference = "Stop"
 
+# Dedicated host port for Kubernetes PostgreSQL to avoid any Windows port 5432 conflicts
+$postgresHostPort = if ($env:RESEARCH_POSTGRES_HOST_PORT) { $env:RESEARCH_POSTGRES_HOST_PORT } else { "15432" }
+$forecastingHostPort = if ($env:RESEARCH_FORECASTING_HOST_PORT) { $env:RESEARCH_FORECASTING_HOST_PORT } else { "8000" }
+$prometheusHostPort = if ($env:RESEARCH_PROMETHEUS_HOST_PORT) { $env:RESEARCH_PROMETHEUS_HOST_PORT } else { "9090" }
+
 # ---------------------------------------------------------------------
 # Step 1: Verify Docker Desktop
 # ---------------------------------------------------------------------
 Write-Host "`n[1/10] Verifying Docker Desktop daemon..." -ForegroundColor Yellow
 try {
     $dockerInfo = docker info --format '{{.ServerVersion}}' 2>$null
-    if (-not $dockerInfo) {
-        Write-Host "Docker daemon is not responding. Attempting to start Docker Desktop..." -ForegroundColor Magenta
-        Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe" -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 10
-        $dockerInfo = docker info --format '{{.ServerVersion}}'
-    }
+        $dockerPaths = @(
+            "$env:LOCALAPPDATA\Programs\DockerDesktop\Docker Desktop.exe",
+            "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+        )
+        foreach ($dp in $dockerPaths) {
+            if (Test-Path $dp) {
+                Start-Process $dp -ErrorAction SilentlyContinue
+                break
+            }
+        }
+        Start-Sleep -Seconds 12
+        $dockerInfo = docker info --format '{{.ServerVersion}}' 2>$null
     Write-Host "  [OK] Docker Desktop is running (Version: $dockerInfo)" -ForegroundColor Green
 } catch {
     Write-Host "  [FAIL] Docker Desktop must be running to execute Research Mode." -ForegroundColor Red
@@ -108,16 +119,6 @@ Write-Host "  [OK] All core Kubernetes pods are Ready." -ForegroundColor Green
 # ---------------------------------------------------------------------
 Write-Host "`n[6/10] Configuring Host -> Kubernetes Port-Forward Bridges..." -ForegroundColor Yellow
 
-# Check and stop local Windows PostgreSQL service if running to prevent port 5432 collision
-try {
-    Get-Service -Name "postgresql*" -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Running' } | ForEach-Object {
-        Write-Host "  Stopping conflicting Windows service: $($_.Name) on port 5432..." -ForegroundColor Magenta
-        Stop-Service -Name $_.Name -Force -ErrorAction SilentlyContinue
-    }
-} catch {
-    # Non-admin or already stopped
-}
-
 # Terminate existing kubectl port-forwards
 Get-Process -Name "kubectl" -ErrorAction SilentlyContinue | Where-Object {
     $_.CommandLine -like "*port-forward*"
@@ -133,14 +134,14 @@ try {
 } catch {}
 
 # Start stable background port-forwards
-Write-Host "  -> Port-Forward: localhost:5432  -> k8s svc/postgres:5432 (ns: autoscaling-experiment)" -ForegroundColor DarkCyan
-Start-Process -FilePath "kubectl" -ArgumentList "port-forward", "svc/postgres", "5432:5432", "-n", "autoscaling-experiment" -WindowStyle Hidden
+Write-Host "  -> Port-Forward: localhost:${postgresHostPort} -> k8s svc/postgres:5432 (ns: autoscaling-experiment)" -ForegroundColor DarkCyan
+Start-Process -FilePath "kubectl" -ArgumentList "port-forward", "svc/postgres", "${postgresHostPort}:5432", "-n", "autoscaling-experiment" -WindowStyle Hidden
 
-Write-Host "  -> Port-Forward: localhost:8000  -> k8s svc/forecasting-service:8000 (ns: autoscaling-experiment)" -ForegroundColor DarkCyan
-Start-Process -FilePath "kubectl" -ArgumentList "port-forward", "svc/forecasting-service", "8000:8000", "-n", "autoscaling-experiment" -WindowStyle Hidden
+Write-Host "  -> Port-Forward: localhost:${forecastingHostPort}  -> k8s svc/forecasting-service:8000 (ns: autoscaling-experiment)" -ForegroundColor DarkCyan
+Start-Process -FilePath "kubectl" -ArgumentList "port-forward", "svc/forecasting-service", "${forecastingHostPort}:8000", "-n", "autoscaling-experiment" -WindowStyle Hidden
 
-Write-Host "  -> Port-Forward: localhost:9090  -> k8s svc/$promSvc:9090 (ns: monitoring)" -ForegroundColor DarkCyan
-Start-Process -FilePath "kubectl" -ArgumentList "port-forward", "svc/$promSvc", "9090:9090", "-n", "monitoring" -WindowStyle Hidden
+Write-Host "  -> Port-Forward: localhost:${prometheusHostPort}  -> k8s svc/$promSvc:9090 (ns: monitoring)" -ForegroundColor DarkCyan
+Start-Process -FilePath "kubectl" -ArgumentList "port-forward", "svc/$promSvc", "${prometheusHostPort}:9090", "-n", "monitoring" -WindowStyle Hidden
 
 Start-Sleep -Seconds 3
 Write-Host "  [OK] Host -> Kubernetes port-forward bridges active." -ForegroundColor Green
@@ -151,18 +152,18 @@ Write-Host "  [OK] Host -> Kubernetes port-forward bridges active." -ForegroundC
 Write-Host "`n[7/10] Launching Spring Boot Experiment Backend (Port 8080)..." -ForegroundColor Yellow
 
 $backendCmd = @"
-`$env:SPRING_DATASOURCE_URL = 'jdbc:postgresql://localhost:5432/autoscaling_db'
+`$env:SPRING_DATASOURCE_URL = 'jdbc:postgresql://localhost:${postgresHostPort}/autoscaling_db'
 `$env:SPRING_DATASOURCE_USERNAME = 'postgres'
 `$env:SPRING_DATASOURCE_PASSWORD = 'password'
-`$env:PROMETHEUS_URL = 'http://localhost:9090'
-`$env:FORECASTING_URL = 'http://localhost:8000'
+`$env:PROMETHEUS_URL = 'http://localhost:${prometheusHostPort}'
+`$env:FORECASTING_URL = 'http://localhost:${forecastingHostPort}'
 `$env:APP_MODE = 'research'
 cd '$baseDir\experiment-backend'
 Write-Host '=====================================================' -ForegroundColor Cyan
 Write-Host '  Starting Spring Boot Backend (RESEARCH MODE)       ' -ForegroundColor Cyan
-Write-Host '  Database:      PostgreSQL via localhost:5432       ' -ForegroundColor Green
-Write-Host '  Forecasting:   Prophet via localhost:8000          ' -ForegroundColor Green
-Write-Host '  Prometheus:    Prometheus via localhost:9090       ' -ForegroundColor Green
+Write-Host '  Database:      PostgreSQL via localhost:${postgresHostPort}      ' -ForegroundColor Green
+Write-Host '  Forecasting:   Prophet via localhost:${forecastingHostPort}         ' -ForegroundColor Green
+Write-Host '  Prometheus:    Prometheus via localhost:${prometheusHostPort}      ' -ForegroundColor Green
 Write-Host '=====================================================' -ForegroundColor Cyan
 mvn spring-boot:run
 "@
@@ -190,7 +191,7 @@ Start-Process powershell -ArgumentList "-NoExit", "-Command", $dashboardCmd
 Write-Host "`n[9/10] Verifying end-to-end component health..." -ForegroundColor Yellow
 
 Write-Host "  Waiting for backend initialization (approx 15 seconds)..." -ForegroundColor DarkGray
-$maxRetries = 15
+$maxRetries = 20
 $backendHealthy = $false
 
 for ($i = 1; $i -le $maxRetries; $i++) {
@@ -229,30 +230,30 @@ try {
 
 # 3. PostgreSQL
 try {
-    $tcpPg = Test-NetConnection -ComputerName "localhost" -Port 5432 -WarningAction SilentlyContinue
+    $tcpPg = Test-NetConnection -ComputerName "localhost" -Port ([int]$postgresHostPort) -WarningAction SilentlyContinue
     if ($tcpPg.TcpTestSucceeded) {
-        Write-Host "  [CONNECTED]   PostgreSQL (K8s Bridge)  -> localhost:5432 -> svc/postgres" -ForegroundColor Green
+        Write-Host "  [CONNECTED]   PostgreSQL (K8s Bridge)  -> localhost:${postgresHostPort} -> svc/postgres:5432" -ForegroundColor Green
     } else {
-        Write-Host "  [WARNING]     PostgreSQL Bridge        -> Port 5432 not responding" -ForegroundColor Yellow
+        Write-Host "  [WARNING]     PostgreSQL Bridge        -> Port ${postgresHostPort} not responding" -ForegroundColor Yellow
     }
 } catch {
-    Write-Host "  [CHECK]       PostgreSQL Bridge        -> localhost:5432" -ForegroundColor DarkGray
+    Write-Host "  [CHECK]       PostgreSQL Bridge        -> localhost:${postgresHostPort}" -ForegroundColor DarkGray
 }
 
 # 4. Forecasting Service
 try {
-    $fRes = Invoke-RestMethod -Uri "http://localhost:8000/health" -TimeoutSec 3 -ErrorAction SilentlyContinue
-    Write-Host "  [READY]       Prophet Service (Bridge) -> localhost:8000 -> svc/forecasting-service (Model: $($fRes.model_ready))" -ForegroundColor Green
+    $fRes = Invoke-RestMethod -Uri "http://localhost:${forecastingHostPort}/health" -TimeoutSec 3 -ErrorAction SilentlyContinue
+    Write-Host "  [READY]       Prophet Service (Bridge) -> localhost:${forecastingHostPort} -> svc/forecasting-service (Model: $($fRes.model_ready))" -ForegroundColor Green
 } catch {
-    Write-Host "  [CHECK]       Prophet Service (Bridge) -> localhost:8000" -ForegroundColor DarkGray
+    Write-Host "  [CHECK]       Prophet Service (Bridge) -> localhost:${forecastingHostPort}" -ForegroundColor DarkGray
 }
 
 # 5. Prometheus
 try {
-    $pRes = Invoke-WebRequest -Uri "http://localhost:9090/-/healthy" -UseBasicParsing -TimeoutSec 3 -ErrorAction SilentlyContinue
-    Write-Host "  [CONNECTED]   Prometheus (Bridge)      -> localhost:9090 -> svc/$promSvc" -ForegroundColor Green
+    $pRes = Invoke-WebRequest -Uri "http://localhost:${prometheusHostPort}/-/healthy" -UseBasicParsing -TimeoutSec 3 -ErrorAction SilentlyContinue
+    Write-Host "  [CONNECTED]   Prometheus (Bridge)      -> localhost:${prometheusHostPort} -> svc/$promSvc" -ForegroundColor Green
 } catch {
-    Write-Host "  [CHECK]       Prometheus (Bridge)      -> localhost:9090" -ForegroundColor DarkGray
+    Write-Host "  [CHECK]       Prometheus (Bridge)      -> localhost:${prometheusHostPort}" -ForegroundColor DarkGray
 }
 
 # 6. Kubernetes API

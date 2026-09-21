@@ -62,9 +62,10 @@ public class KubernetesOrchestratorService {
     public KubernetesOrchestratorService() {
         KubernetesClient client;
         try {
-            Config config = new ConfigBuilder()
-                    .withConnectionTimeout(1000)
-                    .withRequestTimeout(1000)
+            Config autoConfig = Config.autoConfigure(null);
+            Config config = new ConfigBuilder(autoConfig)
+                    .withConnectionTimeout(3000)
+                    .withRequestTimeout(3000)
                     .build();
             client = new KubernetesClientBuilder().withConfig(config).build();
             log.info("Initialized Fabric8 Kubernetes Client successfully for master: {}", client.getMasterUrl());

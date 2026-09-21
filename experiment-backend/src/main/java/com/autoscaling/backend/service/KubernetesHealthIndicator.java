@@ -34,25 +34,26 @@ public class KubernetesHealthIndicator implements HealthIndicator {
         try {
             return CompletableFuture.supplyAsync(() -> {
                 try {
-                    var version = client.getKubernetesVersion();
                     String masterUrl = client.getMasterUrl() != null ? client.getMasterUrl().toString() : "unknown";
-                    if (version != null) {
+                    var ns = client.namespaces().withName("autoscaling-experiment").get();
+                    if (ns != null) {
                         return Health.up()
                                 .withDetail("masterUrl", masterUrl)
-                                .withDetail("gitVersion", version.getGitVersion())
-                                .withDetail("platform", version.getPlatform())
+                                .withDetail("namespace", ns.getMetadata().getName())
+                                .withDetail("status", "ACTIVE")
                                 .build();
                     }
                 } catch (Exception e) {
-                    log.debug("Kubernetes health ping failed: {}", e.getMessage());
+                    log.error("Kubernetes health ping failed: {} (Class: {})", e.getMessage(), e.getClass().getName());
                 }
                 String masterUrl = client.getMasterUrl() != null ? client.getMasterUrl().toString() : "unknown";
                 return Health.down()
                         .withDetail("masterUrl", masterUrl)
                         .withDetail("status", "UNREACHABLE")
                         .build();
-            }).get(800, TimeUnit.MILLISECONDS);
+            }).get(3500, TimeUnit.MILLISECONDS);
         } catch (Exception ex) {
+            log.error("Kubernetes health future failed: {}", ex.getMessage(), ex);
             return Health.down()
                     .withDetail("status", "UNREACHABLE")
                     .withDetail("error", ex.getMessage())
