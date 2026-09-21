@@ -17,7 +17,8 @@ export default function Header({ backendHealth, isRefreshing, onManualRefresh })
   // Real individual component statuses directly from Actuator health breakdown
   const isDbUp = !isSyncing && isBackendUp && Boolean(backendHealth?.components?.db?.status === 'UP');
   const isPrometheusUp = !isSyncing && isBackendUp && Boolean(backendHealth?.components?.prometheus?.status === 'UP');
-  const isProphetUp = !isSyncing && isBackendUp && Boolean(backendHealth?.components?.forecasting?.status === 'UP');
+  const isForecastingUp = !isSyncing && isBackendUp && Boolean(backendHealth?.components?.forecasting?.status === 'UP');
+  const isProphetModelReady = isForecastingUp && Boolean(backendHealth?.components?.forecasting?.details?.modelReady);
   const isK8sUp = !isSyncing && isBackendUp && Boolean(backendHealth?.components?.kubernetes?.status === 'UP');
 
   // Mode detection (Research vs Dev sandbox)
@@ -46,7 +47,8 @@ export default function Header({ backendHealth, isRefreshing, onManualRefresh })
 
   const getProphetInfo = () => {
     if (isSyncing) return { label: 'SYNCING', color: '#38bdf8', dotClass: 'status-dot-syncing' };
-    if (isProphetUp) return { label: 'READY', color: '#22d3ee', dotClass: 'status-dot-active' };
+    if (!isForecastingUp) return { label: 'OFFLINE', color: '#fb7185', dotClass: 'status-dot-danger' };
+    if (isProphetModelReady) return { label: 'READY', color: '#22d3ee', dotClass: 'status-dot-active' };
     return { label: 'NOT READY', color: '#fbbf24', dotClass: 'status-dot-warning' };
   };
 
