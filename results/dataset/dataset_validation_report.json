@@ -1,0 +1,17 @@
+{
+  "timestamp_utc": "2026-09-22T06:22:15.037309+00:00",
+  "total_experiments_scanned": 6,
+  "valid_experiments": 0,
+  "invalid_experiments": 6,
+  "rule_violations": [],
+  "dataset_checksums": {
+    "master_experiments.csv": "60711c982792801b11c50ab0b807f015186853fd012e722d78c1967e28c909a1",
+    "master_requests.csv": "d63b6170385add70f77efaf23487e7dec767a9b5df901909d78b35cb4ad8088c",
+    "master_timeseries.csv": "44f4f878342894ebb9b3831f27ad0a6caf9f9d3b63bc46568cbc0feb2c897f7d",
+    "master_forecasts.csv": "1aca0946fe7b5e33353c7411f8544bcc42d2816afd6ab527126992c64ae8be58",
+    "master_scaling_events.csv": "695497d12e94b4dbc686c2db52fb732b89accdfb764ce1621cd8243c387054da",
+    "experiment_manifest.csv": "b7aff76b37f1c1795d7a66a7daad2fa2073c3ba70a2ccf3acf36e7ec03730b9b",
+    "final_analysis_dataset.csv": "60711c982792801b11c50ab0b807f015186853fd012e722d78c1967e28c909a1",
+    "final_analysis_dataset.parquet": "8776aa7c828770609976c9376223b65e1c4f7a0b742a0e2ea936bd3c559631d8"
+  }
+}
