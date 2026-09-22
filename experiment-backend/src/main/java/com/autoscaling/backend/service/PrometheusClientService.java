@@ -36,7 +36,7 @@ public class PrometheusClientService {
     public static final String QUERY_CPU_PERCENT = "sum(rate(container_cpu_usage_seconds_total{container=\"workload-service\"}[1m])) / sum(kube_pod_container_resource_requests{container=\"workload-service\", resource=\"cpu\"}) * 100";
     public static final String QUERY_CPU_FALLBACK = "sum(process_cpu_usage{job=\"workload-service\"}) * 100";
     public static final String QUERY_MEMORY_BYTES = "sum(container_memory_working_set_bytes{container=\"workload-service\"})";
-    public static final String QUERY_REPLICAS = "kube_deployment_status_replicas_ready{deployment=\"workload-service\"}";
+    public static final String QUERY_REPLICAS = "kube_deployment_status_replicas{deployment=\"workload-service\"}";
 
     private final String prometheusBaseUrl;
     private final RestClient restClient;

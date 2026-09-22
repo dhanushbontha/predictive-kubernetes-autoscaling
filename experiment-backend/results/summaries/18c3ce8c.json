@@ -1,0 +1,21 @@
+{
+  "experimentId" : "18c3ce8c",
+  "name" : "bursty-keda-3466",
+  "scenario" : "BURSTY",
+  "controller" : "PREDICTIVE_PROPHET_KEDA",
+  "startTime" : "2026-09-21T16:10:46.957817Z",
+  "endTime" : "2026-09-21T16:12:46.957817Z",
+  "totalRequests" : 1318,
+  "sloViolations" : 1318,
+  "sloViolationRate" : 1.0,
+  "p95LatencyMs" : 196.39380177948718,
+  "p99LatencyMs" : 366.2652662666693,
+  "avgCpuPercent" : 30.852456491740064,
+  "peakCpuPercent" : 95.63636363636364,
+  "avgReplicas" : 0.9508196721311475,
+  "peakReplicas" : 1,
+  "avgMemoryBytes" : null,
+  "avgScalingDelaySeconds" : 314.042,
+  "mae" : 3.598375087952692,
+  "rmse" : 4.630820225426685
+}

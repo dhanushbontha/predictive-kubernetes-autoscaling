@@ -170,6 +170,20 @@ public class KubernetesOrchestratorService {
                                                 .build())
                                         .build())
                                 .build())
+                        .withNewBehavior()
+                            .withNewScaleUp()
+                                .withStabilizationWindowSeconds(0)
+                                .withSelectPolicy("Max")
+                                .addNewPolicy().withType("Percent").withValue(100).withPeriodSeconds(15).endPolicy()
+                                .addNewPolicy().withType("Pods").withValue(2).withPeriodSeconds(15).endPolicy()
+                            .endScaleUp()
+                            .withNewScaleDown()
+                                .withStabilizationWindowSeconds(60)
+                                .withSelectPolicy("Min")
+                                .addNewPolicy().withType("Percent").withValue(50).withPeriodSeconds(30).endPolicy()
+                                .addNewPolicy().withType("Pods").withValue(1).withPeriodSeconds(30).endPolicy()
+                            .endScaleDown()
+                        .endBehavior()
                     .endSpec()
                     .build();
 
@@ -305,7 +319,8 @@ public class KubernetesOrchestratorService {
                                         .withContainers(new ContainerBuilder()
                                                 .withName("k6")
                                                 .withImage("grafana/k6:0.54.0")
-                                                .withArgs("run", "/scripts/" + scriptName)
+                                                .withCommand("sh", "-c")
+                                                .withArgs("k6 run --out json=/tmp/k6-raw.json /scripts/" + scriptName + " & K6_PID=$!; sleep " + durationSeconds + "; kill -INT $K6_PID 2>/dev/null || true; wait $K6_PID 2>/dev/null || true; echo '===K6_RAW_METRICS_START==='; grep '\"metric\":\"http_req_duration\"' /tmp/k6-raw.json 2>/dev/null || true; echo '===K6_RAW_METRICS_END==='")
                                                 .withEnv(
                                                         new EnvVarBuilder().withName("TARGET_URL").withValue("http://workload-service:8084").build(),
                                                         new EnvVarBuilder().withName("TARGET_RPS").withValue(String.valueOf(targetRps)).build(),
@@ -373,13 +388,13 @@ public class KubernetesOrchestratorService {
                     }
                 }
 
-                // If pod became ready after trigger time or was created during the experiment window
-                if (readyTime != null && triggerTime != null) {
-                    if (readyTime.isAfter(triggerTime) || (creationTime != null && creationTime.isAfter(triggerTime))) {
+                // A genuine scale-out event occurs when a NEW pod is created after the scale trigger
+                if (creationTime != null && triggerTime != null && !creationTime.isBefore(triggerTime.minusSeconds(2))) {
+                    if (readyTime != null && readyTime.isAfter(creationTime)) {
                         double delaySec = Math.max(0.0, java.time.Duration.between(triggerTime, readyTime).toMillis() / 1000.0);
-                        events.add(new com.autoscaling.backend.model.ScalingEvent(podName, triggerTime, creationTime != null ? creationTime : triggerTime, readyTime, delaySec));
-                        log.info("Captured genuine Pod Ready scaling event: pod={}, t_trigger={}, t_ready={}, D_scale={}s",
-                                podName, triggerTime, readyTime, delaySec);
+                        events.add(new com.autoscaling.backend.model.ScalingEvent(podName, triggerTime, creationTime, readyTime, delaySec));
+                        log.info("Captured genuine Pod Ready scale-out event: pod={}, t_trigger={}, t_creation={}, t_ready={}, D_scale={}s",
+                                podName, triggerTime, creationTime, readyTime, delaySec);
                     }
                 }
             }
@@ -406,5 +421,23 @@ public class KubernetesOrchestratorService {
             log.debug("Job status query: {}", ex.getMessage());
         }
         return false;
+    }
+
+    /**
+     * Fetches stdout logs from the completed k6 Job pod for structured request extraction.
+     */
+    public String fetchK6PodLogs(String namespace, String experimentId) {
+        String ns = resolveNamespace(namespace);
+        try {
+            PodList pods = kubernetesClient.pods().inNamespace(ns).withLabel("experiment-id", experimentId).list();
+            if (pods != null && !pods.getItems().isEmpty()) {
+                Pod pod = pods.getItems().get(0);
+                String podName = pod.getMetadata().getName();
+                return kubernetesClient.pods().inNamespace(ns).withName(podName).getLog();
+            }
+        } catch (Exception ex) {
+            log.warn("Failed fetching k6 pod logs for experiment {}: {}", experimentId, ex.getMessage());
+        }
+        return null;
     }
 }

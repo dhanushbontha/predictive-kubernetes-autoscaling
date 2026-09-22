@@ -106,6 +106,15 @@ public class ExperimentEntity {
             resEntity.setPeakCpuPercent(res.getPeakCpuPercent());
             resEntity.setAvgMemoryBytes(res.getAvgMemoryBytes());
             resEntity.setAvgScalingDelaySeconds(res.getAvgScalingDelaySeconds());
+            resEntity.setK6TotalRequests(res.getK6TotalRequests());
+            resEntity.setK6SuccessfulRequests(res.getK6SuccessfulRequests());
+            resEntity.setK6FailedRequests(res.getK6FailedRequests());
+            resEntity.setK6SloViolations(res.getK6SloViolations());
+            resEntity.setK6SloViolationRate(res.getK6SloViolationRate());
+            resEntity.setK6P95LatencyMs(res.getK6P95LatencyMs());
+            resEntity.setK6P99LatencyMs(res.getK6P99LatencyMs());
+            resEntity.setPrometheusScrapeSamples(res.getPrometheusScrapeSamples());
+            resEntity.setPrometheusScrapeGaps(res.getPrometheusScrapeGaps());
 
             if (res.getScalingEvents() != null) {
                 List<ScalingEventEntity> eventEntities = new ArrayList<>();
@@ -151,6 +160,15 @@ public class ExperimentEntity {
             res.setPeakCpuPercent(this.result.getPeakCpuPercent());
             res.setAvgMemoryBytes(this.result.getAvgMemoryBytes());
             res.setAvgScalingDelaySeconds(this.result.getAvgScalingDelaySeconds());
+            res.setK6TotalRequests(this.result.getK6TotalRequests());
+            res.setK6SuccessfulRequests(this.result.getK6SuccessfulRequests());
+            res.setK6FailedRequests(this.result.getK6FailedRequests());
+            res.setK6SloViolations(this.result.getK6SloViolations());
+            res.setK6SloViolationRate(this.result.getK6SloViolationRate());
+            res.setK6P95LatencyMs(this.result.getK6P95LatencyMs());
+            res.setK6P99LatencyMs(this.result.getK6P99LatencyMs());
+            res.setPrometheusScrapeSamples(this.result.getPrometheusScrapeSamples());
+            res.setPrometheusScrapeGaps(this.result.getPrometheusScrapeGaps());
 
             if (this.result.getScalingEvents() != null) {
                 List<ScalingEvent> events = new ArrayList<>();

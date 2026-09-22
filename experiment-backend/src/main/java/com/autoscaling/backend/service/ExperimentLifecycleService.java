@@ -10,6 +10,7 @@ import com.autoscaling.backend.model.AutoscalingMode;
 import com.autoscaling.backend.model.Experiment;
 import com.autoscaling.backend.model.ExperimentResult;
 import com.autoscaling.backend.model.ExperimentStatus;
+import com.autoscaling.backend.model.K6RequestRecord;
 import com.autoscaling.backend.model.ScalingEvent;
 import com.autoscaling.backend.model.WorkloadScenario;
 import com.autoscaling.backend.repository.ExperimentRepository;
@@ -28,6 +29,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 /**
  * Service managing experiment state machine, lifecycle automation, and PostgreSQL persistence.
@@ -148,9 +150,9 @@ public class ExperimentLifecycleService {
             }
 
             // Step 9: Compute final measured results
+            exp.setEndTime(Instant.now());
             ExperimentResult result = calculateExperimentResults(exp);
             exp.setResult(result);
-            exp.setEndTime(Instant.now());
             exp.setStatus(ExperimentStatus.COMPLETED);
             saveExperimentSafely(exp);
 
@@ -243,20 +245,14 @@ public class ExperimentLifecycleService {
                 Instant now = Instant.now();
                 for (ExperimentEntity entity : dbList) {
                     Experiment exp = entity.toDomain();
-                    // Auto-reconcile if experiment duration has elapsed and it's no longer running in active memory
+                    // Auto-reconcile only if an orphaned experiment is no longer actively managed in memory and has expired
                     if ((exp.getStatus() == ExperimentStatus.RUNNING || exp.getStatus() == ExperimentStatus.STARTING)) {
                         int dur = exp.getDurationSeconds() != null ? exp.getDurationSeconds() : 120;
-                        Instant expiry = (exp.getStartTime() != null) ? exp.getStartTime().plusSeconds(dur + 10L) : now;
+                        Instant expiry = (exp.getStartTime() != null) ? exp.getStartTime().plusSeconds(dur + 30L) : now;
                         boolean isActiveMemory = exp.getId().equals(activeExperimentId);
-                        if (!isActiveMemory || now.isAfter(expiry)) {
+                        if (!isActiveMemory && now.isAfter(expiry)) {
                             exp.setStatus(ExperimentStatus.COMPLETED);
                             exp.setEndTime(exp.getStartTime() != null ? exp.getStartTime().plusSeconds(dur) : now);
-                            exp.setResult(calculateExperimentResults(exp));
-                            saveExperimentSafely(exp);
-                        }
-                    } else if (exp.getStatus() == ExperimentStatus.COMPLETED) {
-                        // Re-calculate if it previously had the old static 130.0ms placeholder
-                        if (exp.getResult() == null || (exp.getResult().getP95LatencyMs() != null && exp.getResult().getP95LatencyMs() == 130.0 && exp.getResult().getSloViolationRate() == 0.0)) {
                             exp.setResult(calculateExperimentResults(exp));
                             saveExperimentSafely(exp);
                         }
@@ -454,17 +450,20 @@ public class ExperimentLifecycleService {
 
     /**
      * Calculates authentic experiment results derived entirely from actual Prometheus telemetry
-     * and real Kubernetes pod condition readiness timestamps over the experiment window [startTime, endTime].
+     * and real Kubernetes pod condition readiness timestamps over the experiment window [startTime, endTime],
+     * supplemented by discrete request-level k6 telemetry.
      */
     private ExperimentResult calculateExperimentResults(Experiment exp) {
         ExperimentResult result = new ExperimentResult();
         Instant startTime = exp.getStartTime() != null ? exp.getStartTime() : Instant.now().minusSeconds(exp.getDurationSeconds() != null ? exp.getDurationSeconds() : 60);
-        Instant endTime = exp.getEndTime() != null ? exp.getEndTime() : Instant.now();
+        int durationSec = exp.getDurationSeconds() != null ? exp.getDurationSeconds() : 180;
+        Instant evaluationEndTime = startTime.plusSeconds(durationSec);
+        Instant endTime = exp.getEndTime() != null ? exp.getEndTime() : evaluationEndTime;
 
-        log.info("Calculating authentic experiment results for [{}] over window [{} to {}]", exp.getId(), startTime, endTime);
+        log.info("Calculating authentic experiment results for [{}] over evaluation window [{} to {}]", exp.getId(), startTime, evaluationEndTime);
 
         // 1. Fetch range telemetry from Prometheus for the exact bounded window
-        LiveMetricsHistoryResponse history = prometheusClientService.fetchHistory(startTime, endTime, "2s");
+        LiveMetricsHistoryResponse history = prometheusClientService.fetchHistory(startTime, evaluationEndTime, "2s");
         var reqSeries = history.getActualWorkloadSeries();
         var predSeries = history.getPredictedWorkloadSeries();
         var p95Series = history.getP95LatencySeries();
@@ -473,12 +472,28 @@ public class ExperimentLifecycleService {
         var memSeries = history.getMemoryUtilizationSeries();
         var repSeries = history.getReplicaSeries();
 
-        // 2. Compute Total Requests and SLO Violations
-        long totalReqs = prometheusClientService.calculateTotalRequests(startTime, endTime, reqSeries);
-        int sloTargetMs = exp.getSloLatencyMs() != null ? exp.getSloLatencyMs() : 200;
-        var sloEval = prometheusClientService.calculateSloViolations(startTime, endTime, (double) sloTargetMs, totalReqs);
+        // 2. Compute Prometheus Scrape Quality
+        int prometheusSampleCount = (reqSeries != null) ? reqSeries.size() : 0;
+        int scrapeGaps = 0;
+        if (reqSeries != null && reqSeries.size() > 1) {
+            for (int i = 1; i < reqSeries.size(); i++) {
+                if (reqSeries.get(i - 1).getTimestamp() != null && reqSeries.get(i).getTimestamp() != null) {
+                    long deltaSec = java.time.Duration.between(reqSeries.get(i - 1).getTimestamp(), reqSeries.get(i).getTimestamp()).abs().getSeconds();
+                    if (deltaSec > 10) {
+                        scrapeGaps++;
+                    }
+                }
+            }
+        }
+        result.setPrometheusScrapeSamples(prometheusSampleCount);
+        result.setPrometheusScrapeGaps(scrapeGaps);
 
-        // 3. Compute Aggregates
+        // 3. Compute Prometheus Total Requests and SLO Violations
+        long totalReqs = prometheusClientService.calculateTotalRequests(startTime, evaluationEndTime, reqSeries);
+        int sloTargetMs = exp.getSloLatencyMs() != null ? exp.getSloLatencyMs() : 200;
+        var sloEval = prometheusClientService.calculateSloViolations(startTime, evaluationEndTime, (double) sloTargetMs, totalReqs);
+
+        // 4. Compute Prometheus Aggregates
         Double avgP95 = prometheusClientService.calculateAverage(p95Series);
         Double peakP95 = prometheusClientService.calculatePeak(p95Series);
         Double effectiveP95 = (peakP95 != null && peakP95 > 0.0) ? peakP95 : avgP95;
@@ -494,7 +509,7 @@ public class ExperimentLifecycleService {
         int peakReps = peakRepsD != null ? (int) Math.round(peakRepsD) : 1;
         Double avgMem = prometheusClientService.calculateAverage(memSeries);
 
-        // 4. Out-of-sample Forecast Accuracy (for predictive mode)
+        // 5. Out-of-sample Forecast Accuracy (for predictive mode)
         Double mae = null;
         Double rmse = null;
         if (exp.getAutoscalingMode() == AutoscalingMode.PREDICTIVE_PROPHET_KEDA) {
@@ -502,8 +517,8 @@ public class ExperimentLifecycleService {
             rmse = prometheusClientService.calculateRmse(reqSeries, predSeries);
         }
 
-        // 5. Query Real Kubernetes Pod Scaling Events & Delay
-        List<ScalingEvent> scalingEvents = kubernetesService.extractScalingEvents(null, startTime, endTime);
+        // 6. Query Real Kubernetes Pod Scaling Events & Delay
+        List<ScalingEvent> scalingEvents = kubernetesService.extractScalingEvents(null, startTime, evaluationEndTime);
         Double avgScalingDelay = null;
         if (!scalingEvents.isEmpty()) {
             avgScalingDelay = scalingEvents.stream()
@@ -512,7 +527,40 @@ public class ExperimentLifecycleService {
                     .orElse(0.0);
         }
 
-        // 6. Populate ExperimentResult
+        // 7. Parse Discrete k6 Request-Level Telemetry from Pod Logs
+        String podLogs = kubernetesService.fetchK6PodLogs(null, exp.getId());
+        List<K6RequestRecord> k6Records = parseK6Logs(podLogs, startTime, evaluationEndTime, sloTargetMs, exp.getScenario() != null ? exp.getScenario().name() : "DEFAULT");
+
+        if (!k6Records.isEmpty()) {
+            long k6Total = k6Records.size();
+            long k6Success = k6Records.stream().filter(K6RequestRecord::isSuccess).count();
+            long k6Failed = k6Total - k6Success;
+            long k6Violations = k6Records.stream().filter(K6RequestRecord::isSloViolation).count();
+            double k6ViolRate = (k6Total > 0) ? ((double) k6Violations / k6Total) : 0.0;
+
+            List<Double> durations = k6Records.stream()
+                    .map(K6RequestRecord::getDurationMs)
+                    .sorted()
+                    .collect(Collectors.toList());
+
+            int p95Idx = Math.max(0, Math.min((int) Math.ceil(0.95 * durations.size()) - 1, durations.size() - 1));
+            int p99Idx = Math.max(0, Math.min((int) Math.ceil(0.99 * durations.size()) - 1, durations.size() - 1));
+            double k6P95 = durations.get(p95Idx);
+            double k6P99 = durations.get(p99Idx);
+
+            result.setK6TotalRequests(k6Total);
+            result.setK6SuccessfulRequests(k6Success);
+            result.setK6FailedRequests(k6Failed);
+            result.setK6SloViolations(k6Violations);
+            result.setK6SloViolationRate(k6ViolRate);
+            result.setK6P95LatencyMs(k6P95);
+            result.setK6P99LatencyMs(k6P99);
+
+            log.info("Extracted [{}] discrete k6 request records for [{}]. Success={}, Failed={}, Violations={} ({:.1f}%), P95={:.1f}ms, P99={:.1f}ms",
+                    k6Total, exp.getId(), k6Success, k6Failed, k6Violations, k6ViolRate * 100.0, k6P95, k6P99);
+        }
+
+        // 8. Populate ExperimentResult
         result.setTotalRequests(totalReqs);
         result.setSloViolations(sloEval.getViolations());
         result.setSloViolationRate(sloEval.getViolationRate());
@@ -528,11 +576,85 @@ public class ExperimentLifecycleService {
         result.setRmse(rmse);
         result.setScalingEvents(scalingEvents);
 
-        // 7. Persist raw telemetry and summary files to results/ directory
+        // 9. Persist raw telemetry, k6 request records, and summary files
+        persistK6Requests(exp, k6Records);
         persistRawTelemetry(exp, history, scalingEvents);
         persistSummary(exp, result);
 
         return result;
+    }
+
+    private List<K6RequestRecord> parseK6Logs(String logs, Instant windowStart, Instant windowEnd, int sloTargetMs, String scenarioName) {
+        List<K6RequestRecord> records = new ArrayList<>();
+        if (logs == null || logs.isBlank()) {
+            return records;
+        }
+
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+
+        int startIdx = logs.indexOf("===K6_RAW_METRICS_START===");
+        int endIdx = logs.indexOf("===K6_RAW_METRICS_END===");
+        String metricsText;
+        if (startIdx >= 0 && endIdx > startIdx) {
+            metricsText = logs.substring(startIdx + "===K6_RAW_METRICS_START===".length(), endIdx);
+        } else {
+            metricsText = logs;
+        }
+
+        String[] lines = metricsText.split("\r?\n");
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("{") && trimmed.contains("\"metric\":\"http_req_duration\"")) {
+                try {
+                    var node = mapper.readTree(trimmed);
+                    var data = node.get("data");
+                    if (data != null) {
+                        String timeStr = data.has("time") ? data.get("time").asText() : null;
+                        Double value = data.has("value") ? data.get("value").asDouble() : null;
+                        String status = "0";
+                        String scenario = scenarioName;
+                        if (data.has("tags")) {
+                            var tags = data.get("tags");
+                            if (tags.has("status")) {
+                                status = tags.get("status").asText();
+                            }
+                            if (tags.has("scenario")) {
+                                scenario = tags.get("scenario").asText();
+                            }
+                        }
+
+                        if (timeStr != null && value != null) {
+                            Instant timestamp = Instant.parse(timeStr);
+                            if (!timestamp.isBefore(windowStart) && !timestamp.isAfter(windowEnd)) {
+                                boolean isSuccess = status.startsWith("2") || status.startsWith("3");
+                                boolean isSloViolation = value > sloTargetMs;
+                                records.add(new K6RequestRecord(timestamp, value, status, isSuccess, isSloViolation, scenario));
+                            }
+                        }
+                    }
+                } catch (Exception ex) {
+                    // Ignore unparseable or irrelevant lines
+                }
+            }
+        }
+        return records;
+    }
+
+    private void persistK6Requests(Experiment exp, List<K6RequestRecord> records) {
+        try {
+            java.io.File rawDir = new java.io.File("results/raw/" + exp.getId());
+            if (!rawDir.exists()) {
+                rawDir.mkdirs();
+            }
+            java.io.File k6File = new java.io.File(rawDir, "k6_requests.json");
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+            mapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+            mapper.writerWithDefaultPrettyPrinter().writeValue(k6File, records);
+            log.info("Persisted [{}] discrete k6 request records to: {}", records.size(), k6File.getAbsolutePath());
+        } catch (Exception ex) {
+            log.warn("Failed persisting k6 request records for {}: {}", exp.getId(), ex.getMessage());
+        }
     }
 
     private void persistRawTelemetry(Experiment exp, LiveMetricsHistoryResponse history, List<ScalingEvent> scalingEvents) {
@@ -563,6 +685,7 @@ public class ExperimentLifecycleService {
 
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
             mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+            mapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
             mapper.writerWithDefaultPrettyPrinter().writeValue(rawFile, rawData);
             log.info("Persisted raw telemetry provenance to: {}", rawFile.getAbsolutePath());
         } catch (Exception ex) {
@@ -584,11 +707,29 @@ public class ExperimentLifecycleService {
             sumData.put("controller", exp.getAutoscalingMode() != null ? exp.getAutoscalingMode().name() : "UNKNOWN");
             sumData.put("startTime", exp.getStartTime() != null ? exp.getStartTime().toString() : null);
             sumData.put("endTime", exp.getEndTime() != null ? exp.getEndTime().toString() : null);
-            sumData.put("totalRequests", res.getTotalRequests());
-            sumData.put("sloViolations", res.getSloViolations());
-            sumData.put("sloViolationRate", res.getSloViolationRate());
-            sumData.put("p95LatencyMs", res.getP95LatencyMs());
-            sumData.put("p99LatencyMs", res.getP99LatencyMs());
+            sumData.put("durationSeconds", exp.getDurationSeconds());
+            sumData.put("sloLatencyMs", exp.getSloLatencyMs());
+
+            // Discrete k6 request metrics
+            sumData.put("k6TotalRequests", res.getK6TotalRequests());
+            sumData.put("k6SuccessfulRequests", res.getK6SuccessfulRequests());
+            sumData.put("k6FailedRequests", res.getK6FailedRequests());
+            sumData.put("k6SloViolations", res.getK6SloViolations());
+            sumData.put("k6SloViolationRate", res.getK6SloViolationRate());
+            sumData.put("k6P95LatencyMs", res.getK6P95LatencyMs());
+            sumData.put("k6P99LatencyMs", res.getK6P99LatencyMs());
+
+            // Prometheus scrape quality
+            sumData.put("expectedScrapeIntervalSeconds", 5.0);
+            sumData.put("prometheusScrapeSamples", res.getPrometheusScrapeSamples());
+            sumData.put("prometheusScrapeGaps", res.getPrometheusScrapeGaps());
+
+            // Prometheus aggregates
+            sumData.put("totalRequestsPrometheus", res.getTotalRequests());
+            sumData.put("sloViolationsPrometheus", res.getSloViolations());
+            sumData.put("sloViolationRatePrometheus", res.getSloViolationRate());
+            sumData.put("p95LatencyMsPrometheus", res.getP95LatencyMs());
+            sumData.put("p99LatencyMsPrometheus", res.getP99LatencyMs());
             sumData.put("avgCpuPercent", res.getAvgCpuPercent());
             sumData.put("peakCpuPercent", res.getPeakCpuPercent());
             sumData.put("avgReplicas", res.getAvgReplicas());
@@ -600,6 +741,7 @@ public class ExperimentLifecycleService {
 
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
             mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+            mapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
             mapper.writerWithDefaultPrettyPrinter().writeValue(summaryFile, sumData);
             log.info("Persisted summary metrics to: {}", summaryFile.getAbsolutePath());
         } catch (Exception ex) {

@@ -133,18 +133,18 @@ try {
     }
 } catch {}
 
-# Start stable background port-forwards
+# Start resilient background port-forwards with auto-reconnection loops
 Write-Host "  -> Port-Forward: localhost:${postgresHostPort} -> k8s svc/postgres:5432 (ns: autoscaling-experiment)" -ForegroundColor DarkCyan
-Start-Process -FilePath "kubectl" -ArgumentList "port-forward", "svc/postgres", "${postgresHostPort}:5432", "-n", "autoscaling-experiment" -WindowStyle Hidden
+Start-Process powershell -ArgumentList "-WindowStyle", "Hidden", "-Command", "while (`$true) { kubectl port-forward svc/postgres ${postgresHostPort}:5432 -n autoscaling-experiment; Start-Sleep -Seconds 1 }"
 
 Write-Host "  -> Port-Forward: localhost:${forecastingHostPort}  -> k8s svc/forecasting-service:8000 (ns: autoscaling-experiment)" -ForegroundColor DarkCyan
-Start-Process -FilePath "kubectl" -ArgumentList "port-forward", "svc/forecasting-service", "${forecastingHostPort}:8000", "-n", "autoscaling-experiment" -WindowStyle Hidden
+Start-Process powershell -ArgumentList "-WindowStyle", "Hidden", "-Command", "while (`$true) { kubectl port-forward svc/forecasting-service ${forecastingHostPort}:8000 -n autoscaling-experiment; Start-Sleep -Seconds 1 }"
 
 Write-Host "  -> Port-Forward: localhost:${prometheusHostPort}  -> k8s svc/$promSvc:9090 (ns: monitoring)" -ForegroundColor DarkCyan
-Start-Process -FilePath "kubectl" -ArgumentList "port-forward", "svc/$promSvc", "${prometheusHostPort}:9090", "-n", "monitoring" -WindowStyle Hidden
+Start-Process powershell -ArgumentList "-WindowStyle", "Hidden", "-Command", "while (`$true) { kubectl port-forward svc/$promSvc ${prometheusHostPort}:9090 -n monitoring; Start-Sleep -Seconds 1 }"
 
 Start-Sleep -Seconds 3
-Write-Host "  [OK] Host -> Kubernetes port-forward bridges active." -ForegroundColor Green
+Write-Host "  [OK] Host -> Kubernetes port-forward bridges active (auto-reconnecting)." -ForegroundColor Green
 
 # ---------------------------------------------------------------------
 # Step 7: Launch Local Spring Boot Backend (Research Configuration)
