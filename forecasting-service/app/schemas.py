@@ -33,6 +33,8 @@ class TrainRequest(BaseModel):
     """
     Request body for manual / on-demand model retraining.
     """
+    start_timestamp: Optional[float] = Field(None, description="Exact start timestamp in unix epoch seconds")
+    end_timestamp: Optional[float] = Field(None, description="Exact end timestamp in unix epoch seconds")
     lookback_minutes: Optional[int] = Field(None, ge=1, le=120, description="Override lookback window in minutes")
     forecast_horizon_seconds: Optional[int] = Field(None, ge=10, le=600, description="Override forecast horizon")
 
@@ -48,6 +50,10 @@ class TrainResponse(BaseModel):
     predicted_rps: float = Field(..., description="Latest forward predicted RPS set on Prometheus gauge")
     mae: Optional[float] = Field(None, description="Computed MAE error metric")
     rmse: Optional[float] = Field(None, description="Computed RMSE error metric")
+    training_start_utc: Optional[datetime] = Field(None, description="Start timestamp of training query window")
+    training_end_utc: Optional[datetime] = Field(None, description="End timestamp of training query window")
+    earliest_training_sample: Optional[datetime] = Field(None, description="Earliest observation timestamp in training data")
+    latest_training_sample: Optional[datetime] = Field(None, description="Latest observation timestamp in training data")
 
 
 class HealthResponse(BaseModel):

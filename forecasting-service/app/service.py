@@ -46,6 +46,8 @@ class ForecastingService:
 
     async def run_forecast_cycle(
         self,
+        start_timestamp: Optional[float] = None,
+        end_timestamp: Optional[float] = None,
         lookback_minutes: Optional[int] = None,
         forecast_horizon_seconds: Optional[int] = None,
     ) -> TrainResponse:
@@ -56,12 +58,27 @@ class ForecastingService:
         horizon = forecast_horizon_seconds or settings.FORECAST_HORIZON_SECONDS
         start_time = time.perf_counter()
 
-        logger.info("Starting forecasting cycle: lookback=%dm, horizon=%ds", lookback, horizon)
+        logger.info("Starting forecasting cycle: start_ts=%s, end_ts=%s, lookback=%dm, horizon=%ds",
+                    str(start_timestamp), str(end_timestamp), lookback, horizon)
 
         try:
             # 1. Scrape Prometheus
-            df = await self.scraper.fetch_workload_history(lookback_minutes=lookback)
+            df = await self.scraper.fetch_workload_history(
+                start_timestamp=start_timestamp,
+                end_timestamp=end_timestamp,
+                lookback_minutes=lookback,
+            )
             data_points = len(df) if df is not None else 0
+
+            earliest_sample = None
+            latest_sample = None
+            if df is not None and len(df) > 0 and "ds" in df.columns:
+                earliest_sample = pd.to_datetime(df["ds"].min()).to_pydatetime()
+                latest_sample = pd.to_datetime(df["ds"].max()).to_pydatetime()
+                if earliest_sample.tzinfo is None:
+                    earliest_sample = earliest_sample.replace(tzinfo=timezone.utc)
+                if latest_sample.tzinfo is None:
+                    latest_sample = latest_sample.replace(tzinfo=timezone.utc)
 
             # 2. Fit Prophet Model
             success, message = self.forecaster.fit(df)
@@ -102,7 +119,11 @@ class ForecastingService:
             )
 
             status_str = "SUCCESS" if success else "SKIPPED_INSUFFICIENT_DATA"
-            logger.info("Cycle completed in %.3fs. Status: %s. Target Predicted RPS: %.2f", duration, status_str, next_rps)
+            logger.info("Cycle completed in %.3fs. Status: %s. Data points: %d. Target Predicted RPS: %.2f",
+                        duration, status_str, data_points, next_rps)
+
+            training_start_dt = datetime.fromtimestamp(start_timestamp, tz=timezone.utc) if start_timestamp else None
+            training_end_dt = datetime.fromtimestamp(end_timestamp, tz=timezone.utc) if end_timestamp else None
 
             return TrainResponse(
                 status=status_str,
@@ -112,6 +133,10 @@ class ForecastingService:
                 predicted_rps=next_rps,
                 mae=self.forecaster.latest_mae,
                 rmse=self.forecaster.latest_rmse,
+                training_start_utc=training_start_dt,
+                training_end_utc=training_end_dt,
+                earliest_training_sample=earliest_sample,
+                latest_training_sample=latest_sample,
             )
 
         except Exception as e:

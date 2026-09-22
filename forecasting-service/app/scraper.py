@@ -5,6 +5,7 @@ Fetches historical workload time-series from Prometheus for Prophet model fittin
 
 import logging
 from datetime import datetime, timezone
+from typing import Optional
 import httpx
 import pandas as pd
 
@@ -24,6 +25,8 @@ class PrometheusScraper:
 
     async def fetch_workload_history(
         self,
+        start_timestamp: Optional[float] = None,
+        end_timestamp: Optional[float] = None,
         lookback_minutes: int = settings.SCRAPE_LOOKBACK_MINUTES,
         step_seconds: int = settings.SCRAPE_STEP_SECONDS,
         query: str = settings.WORKLOAD_METRIC_QUERY,
@@ -31,9 +34,9 @@ class PrometheusScraper:
         """
         Query Prometheus range API and return a sanitized DataFrame with 'ds' and 'y' columns.
         """
-        now = datetime.now(timezone.utc)
-        end_time = now.timestamp()
-        start_time = end_time - (lookback_minutes * 60)
+        now = datetime.now(timezone.utc).timestamp()
+        end_time = end_timestamp if end_timestamp is not None else now
+        start_time = start_timestamp if start_timestamp is not None else (end_time - (lookback_minutes * 60))
 
         params = {
             "query": query,

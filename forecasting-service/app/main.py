@@ -121,9 +121,11 @@ async def get_forecast_accuracy():
 @app.post("/api/train", response_model=TrainResponse, summary="Trigger Manual Model Retraining")
 async def trigger_training(req: TrainRequest = TrainRequest()):
     """
-    Trigger an immediate on-demand scrape and Prophet model training cycle.
+    Trigger an immediate on-demand scrape and Prophet model training cycle with causal boundaries.
     """
     response = await forecasting_service.run_forecast_cycle(
+        start_timestamp=req.start_timestamp,
+        end_timestamp=req.end_timestamp,
         lookback_minutes=req.lookback_minutes,
         forecast_horizon_seconds=req.forecast_horizon_seconds,
     )
@@ -133,6 +135,21 @@ async def trigger_training(req: TrainRequest = TrainRequest()):
 
     return response
 
+
+@app.post("/api/forecast/reset", summary="Reset In-Memory Forecast State")
+async def reset_forecast_state():
+    """
+    Reset in-memory RollingForecastLedger, prediction history, and model state before calibration.
+    """
+    forecasting_service.forecaster.ledger.pending_predictions.clear()
+    forecasting_service.forecaster.ledger.evaluated_pairs.clear()
+    forecasting_service.forecaster.ledger.last_evaluated_at = None
+    forecasting_service.forecaster.latest_mae = None
+    forecasting_service.forecaster.latest_rmse = None
+    forecasting_service.latest_forecast = None
+    PREDICTED_RPS_GAUGE.set(settings.DEFAULT_BASELINE_RPS)
+
+    return {"status": "RESET", "message": "In-memory forecasting ledger and gauge reset to default baseline"}
 
 
 if __name__ == "__main__":
