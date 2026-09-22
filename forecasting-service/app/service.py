@@ -8,6 +8,7 @@ import logging
 import time
 from datetime import datetime, timezone
 from typing import Optional
+import pandas as pd
 
 from app.config import settings
 from app.metrics import (

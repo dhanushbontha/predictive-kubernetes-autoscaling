@@ -234,7 +234,7 @@ class DatasetBuilder:
                 "forecast_rmse_rps": summary.get("rmse"),
                 "training_start_utc": summary.get("trainingStartUtc"),
                 "training_end_utc": summary.get("trainingEndUtc"),
-                "training_sample_count": summary.get("trainingSampleCount", 24 if controller == "PREDICTIVE_PROPHET_KEDA" else None),
+                "training_sample_count": summary.get("trainingSampleCount"),
                 "raw_k6_file": k6_file,
                 "raw_telemetry_file": telemetry_file,
                 "raw_forecast_file": os.path.join(exp_dir, "forecasts.json"),
