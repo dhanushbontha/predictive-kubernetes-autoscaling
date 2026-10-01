@@ -670,7 +670,7 @@ export default function HistoryView({ history = [], onRefresh }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
                   <Zap size={16} color="#06b6d4" />
                   <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#67e8f9' }}>
-                    Meta Prophet Out-of-Sample Forecast Accuracy (60s Horizon)
+                    Prophet Out-of-Sample Forecast Accuracy (60s Horizon)
                   </span>
                 </div>
                 <div style={{ display: 'flex', gap: '2rem', fontSize: '0.85rem', flexWrap: 'wrap' }}>

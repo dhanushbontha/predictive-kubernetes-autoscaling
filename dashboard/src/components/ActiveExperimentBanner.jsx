@@ -73,7 +73,7 @@ export default function ActiveExperimentBanner({ activeExp, backendHealth, onSto
               <span className="badge badge-emerald">IDLE</span>
             </div>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.1rem' }}>
-              Select a synthetic workload pattern below to dispatch an automated benchmark execution.
+              Select the next locked workload configuration to execute the research benchmark.
             </p>
           </div>
         </div>

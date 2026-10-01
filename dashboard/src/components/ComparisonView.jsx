@@ -86,7 +86,7 @@ export default function ComparisonView({ history = [] }) {
                   Benchmark Comparison & Evaluation Engine
                 </h2>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                  Head-to-head empirical evaluation: Reactive HPA vs Predictive Meta Prophet + KEDA
+                  Head-to-head empirical evaluation: Reactive HPA vs Predictive Prophet + KEDA
                 </p>
               </div>
             </div>
@@ -215,7 +215,7 @@ export default function ComparisonView({ history = [] }) {
                 Benchmark Comparison & Scientific Evaluation Engine
               </h2>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                Direct quantitative evaluation: Reactive HPA vs Predictive Meta Prophet + KEDA
+                Direct quantitative evaluation: Reactive HPA vs Predictive Prophet + KEDA
               </p>
             </div>
           </div>
@@ -411,7 +411,7 @@ export default function ComparisonView({ history = [] }) {
                   <strong>Autoscaling Response Lag (D_E2E):</strong> Predictive KEDA reached Pod Ready state in <strong>{formatSeconds(kedaDelay)}</strong> from traffic start, while Reactive HPA reached Ready in <strong>{formatSeconds(hpaDelay)}</strong>.
                 </li>
                 <li>
-                  <strong>Forecast Accuracy:</strong> Meta Prophet achieved an out-of-sample MAE of <strong>{formatMaeRmse(keda.mae)}</strong> and RMSE of <strong>{formatMaeRmse(keda.rmse)}</strong> over a 60-second horizon.
+                  <strong>Forecast Accuracy:</strong> Prophet achieved an out-of-sample MAE of <strong>{formatMaeRmse(keda.mae)}</strong> and RMSE of <strong>{formatMaeRmse(keda.rmse)}</strong> over a 60-second horizon.
                 </li>
               </ul>
             </div>
@@ -438,7 +438,7 @@ export default function ComparisonView({ history = [] }) {
               <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-secondary)', textAlign: 'left' }}>
                 <th style={{ padding: '0.6rem 0.75rem' }}>Evaluation Parameter</th>
                 <th style={{ padding: '0.6rem 0.75rem' }}>Reactive (Kubernetes HPA)</th>
-                <th style={{ padding: '0.6rem 0.75rem' }}>Predictive (Meta Prophet + KEDA)</th>
+                <th style={{ padding: '0.6rem 0.75rem' }}>Predictive (Prophet + KEDA)</th>
                 <th style={{ padding: '0.6rem 0.75rem' }}>Quantitative Delta (Δ)</th>
                 <th style={{ padding: '0.6rem 0.75rem' }}>Notes</th>
               </tr>

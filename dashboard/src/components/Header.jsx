@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Activity, Server, Database, Layers, RefreshCw, Zap, Radio } from 'lucide-react';
 
-export default function Header({ backendHealth, isRefreshing, onManualRefresh }) {
+export default function Header({ backendHealth, isRefreshing, onManualRefresh, appMode = 'RESEARCH' }) {
   const [time, setTime] = useState(new Date().toUTCString());
 
   useEffect(() => {
@@ -22,10 +22,7 @@ export default function Header({ backendHealth, isRefreshing, onManualRefresh })
   const isK8sUp = !isSyncing && isBackendUp && Boolean(backendHealth?.components?.kubernetes?.status === 'UP');
 
   // Mode detection (Research vs Dev sandbox)
-  const rawMode = backendHealth?.components?.systemMode?.details?.mode;
   const isDbH2 = backendHealth?.components?.db?.details?.database === 'H2' || backendHealth?.components?.systemMode?.details?.datasourceType === 'H2_IN_MEMORY';
-  const isDevMode = rawMode === 'DEV' || isDbH2;
-  const isResearchMode = isBackendUp && !isDevMode && (rawMode === 'RESEARCH' || !isDbH2);
 
   const getBackendInfo = () => {
     if (isSyncing) return { label: 'SYNCING', color: '#38bdf8', dotClass: 'status-dot-syncing' };
@@ -88,24 +85,8 @@ export default function Header({ backendHealth, isRefreshing, onManualRefresh })
                 Predictive Kubernetes Autoscaling
               </h1>
               
-              {/* Distinct Mode Badge */}
-              {isResearchMode && (
-                <span
-                  className="badge badge-emerald"
-                  style={{
-                    background: 'rgba(16, 185, 129, 0.15)',
-                    border: '1px solid #10b981',
-                    color: '#34d399',
-                    boxShadow: '0 0 10px rgba(16, 185, 129, 0.2)',
-                    fontWeight: 700,
-                    letterSpacing: '0.04em'
-                  }}
-                  title="Research / Demo Mode: Local Windows Backend connected via Port-Forward bridges to Kubernetes/Minikube"
-                >
-                  🔬 RESEARCH MODE
-                </span>
-              )}
-              {isDevMode && isBackendUp && (
+              {/* Dynamic Mode Badge */}
+              {appMode === 'DEMO' ? (
                 <span
                   className="badge"
                   style={{
@@ -116,9 +97,24 @@ export default function Header({ backendHealth, isRefreshing, onManualRefresh })
                     fontWeight: 700,
                     letterSpacing: '0.04em'
                   }}
-                  title="Development Mode: Offline Local Sandbox - Not for official Kubernetes research experiments"
+                  title="Demo Mode: Interactive Live Sandbox — Excluded from Research Dataset"
                 >
-                  🛠️ DEV MODE (LOCAL SANDBOX)
+                  🎮 DEMO MODE
+                </span>
+              ) : (
+                <span
+                  className="badge badge-emerald"
+                  style={{
+                    background: 'rgba(16, 185, 129, 0.15)',
+                    border: '1px solid #10b981',
+                    color: '#34d399',
+                    boxShadow: '0 0 10px rgba(16, 185, 129, 0.2)',
+                    fontWeight: 700,
+                    letterSpacing: '0.04em'
+                  }}
+                  title="Research Mode: Official 30-run locked benchmark matrix execution"
+                >
+                  🔬 RESEARCH MODE
                 </span>
               )}
               {!isBackendUp && !isSyncing && (
@@ -126,7 +122,9 @@ export default function Header({ backendHealth, isRefreshing, onManualRefresh })
               )}
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '0.15rem' }}>
-              Meta Prophet + KEDA vs Reactive HPA Benchmark Engine
+              {appMode === 'DEMO'
+                ? 'Interactive Live Sandbox — Excluded from Research Dataset'
+                : 'Predictive Prophet + KEDA vs Reactive HPA Research Platform'}
             </p>
           </div>
         </div>

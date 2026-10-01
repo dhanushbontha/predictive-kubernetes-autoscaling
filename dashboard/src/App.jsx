@@ -12,6 +12,7 @@ import { checkHealth, getActiveExperiment, startExperiment, stopExperiment, getL
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('live'); // 'live' | 'comparison' | 'history'
+  const [appMode, setAppMode] = useState('RESEARCH'); // 'RESEARCH' | 'DEMO'
   const [backendHealth, setBackendHealth] = useState(() => {
     try {
       const cached = sessionStorage.getItem('dashboard_backend_health');
@@ -161,8 +162,9 @@ export default function App() {
   return (
     <div style={{ maxWidth: '1440px', margin: '0 auto', padding: '1.5rem' }}>
       
-      {/* 1. Header with System Health Indicators */}
+      {/* 1. Header with System Health Indicators & Dynamic Mode */}
       <Header
+        appMode={appMode}
         backendHealth={backendHealth}
         isRefreshing={isRefreshing}
         onManualRefresh={refreshState}
@@ -248,7 +250,7 @@ export default function App() {
             Autoscaling Mode:
           </span>
           <span className={`badge ${activeExp ? (activeExp.autoscalingMode === 'PREDICTIVE_PROPHET_KEDA' ? 'badge-cyan' : 'badge-amber') : 'badge-violet'}`} style={{ fontSize: '0.7rem' }}>
-            {activeExp ? (activeExp.autoscalingMode === 'PREDICTIVE_PROPHET_KEDA' ? 'Meta Prophet + KEDA' : 'Reactive CPU HPA') : 'Sequential Matrix Engine'}
+            {activeExp ? (activeExp.autoscalingMode === 'PREDICTIVE_PROPHET_KEDA' ? 'Prophet + KEDA' : 'Reactive CPU HPA') : 'Sequential Matrix Engine'}
           </span>
         </div>
       </div>
@@ -264,6 +266,8 @@ export default function App() {
 
           {/* Experiment Launcher & Scenario Controller */}
           <ExperimentLauncher
+            controlMode={appMode}
+            onControlModeChange={setAppMode}
             onStartExperiment={handleStartExperiment}
             isStarting={isStarting}
             activeExp={activeExp}
@@ -294,7 +298,7 @@ export default function App() {
         borderTop: '1px solid var(--border-subtle)',
         marginTop: '2rem'
       }}>
-        <p>Predictive Kubernetes Autoscaling — Benchmarking Meta Prophet + KEDA vs Reactive HPA</p>
+        <p>Predictive Kubernetes Autoscaling — Benchmarking Prophet + KEDA vs Reactive HPA</p>
       </footer>
 
     </div>

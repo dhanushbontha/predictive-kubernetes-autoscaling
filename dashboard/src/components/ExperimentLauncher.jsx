@@ -62,8 +62,24 @@ const AUTOSCALING_MODES = [
   },
 ];
 
-export default function ExperimentLauncher({ onStartExperiment, isStarting, activeExp, history = [] }) {
-  const [controlMode, setControlMode] = useState('RESEARCH'); // 'RESEARCH' | 'DEMO'
+export default function ExperimentLauncher({ 
+  onStartExperiment, 
+  isStarting, 
+  activeExp, 
+  history = [],
+  controlMode: controlledMode,
+  onControlModeChange,
+}) {
+  const [internalMode, setInternalMode] = useState('RESEARCH'); // 'RESEARCH' | 'DEMO'
+  const controlMode = controlledMode !== undefined ? controlledMode : internalMode;
+  const setControlMode = (mode) => {
+    if (onControlModeChange) {
+      onControlModeChange(mode);
+    } else {
+      setInternalMode(mode);
+    }
+  };
+
   const [showScheduleMatrix, setShowScheduleMatrix] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
@@ -517,7 +533,7 @@ export default function ExperimentLauncher({ onStartExperiment, isStarting, acti
                 DEMO MODE — NOT INCLUDED IN RESEARCH DATASET
               </strong>
               <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
-                This interactive sandbox is for practical live demonstration during presentation. Experiments executed here use real in-cluster Kubernetes/Prophet/KEDA infrastructure but are strictly isolated from the official 30-run academic benchmark results.
+                This interactive sandbox is for practical live demonstration. Experiments executed here use the real in-cluster Kubernetes/Prophet/KEDA infrastructure but are strictly isolated from the official 30-run research benchmark results.
               </p>
             </div>
           </div>
