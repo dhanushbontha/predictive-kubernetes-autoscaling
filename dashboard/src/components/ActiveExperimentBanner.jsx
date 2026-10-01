@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Play, Square, Clock, Gauge, Target, ShieldAlert, Cpu, CheckCircle } from 'lucide-react';
 
-export default function ActiveExperimentBanner({ activeExp, backendHealth, onStopExperiment, isStopping }) {
+export default function ActiveExperimentBanner({ activeExp, backendHealth, onStopExperiment, isStopping, appMode = 'RESEARCH' }) {
   const [elapsed, setElapsed] = useState(0);
   const isBackendUp = Boolean(backendHealth && (backendHealth.status === 'UP' || backendHealth.status === 'OK' || backendHealth.components));
 
@@ -53,6 +53,7 @@ export default function ActiveExperimentBanner({ activeExp, backendHealth, onSto
   }
 
   if (!activeExp || activeExp.status === 'IDLE' || activeExp.status === 'COMPLETED' || activeExp.status === 'STOPPED') {
+    const isDemo = appMode === 'DEMO';
     return (
       <div className="glass-panel" style={{
         padding: '1rem 1.5rem',
@@ -60,20 +61,26 @@ export default function ActiveExperimentBanner({ activeExp, backendHealth, onSto
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        background: 'linear-gradient(90deg, rgba(16,185,129,0.05) 0%, rgba(15,23,42,0.6) 100%)',
-        borderColor: 'rgba(16,185,129,0.2)',
+        background: isDemo
+          ? 'linear-gradient(90deg, rgba(245,158,11,0.06) 0%, rgba(15,23,42,0.6) 100%)'
+          : 'linear-gradient(90deg, rgba(16,185,129,0.05) 0%, rgba(15,23,42,0.6) 100%)',
+        borderColor: isDemo ? 'rgba(245,158,11,0.3)' : 'rgba(16,185,129,0.2)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-          <div style={{ padding: '0.5rem', background: 'rgba(16,185,129,0.15)', borderRadius: '10px' }}>
-            <CheckCircle size={20} color="#10b981" />
+          <div style={{ padding: '0.5rem', background: isDemo ? 'rgba(245,158,11,0.15)' : 'rgba(16,185,129,0.15)', borderRadius: '10px' }}>
+            <CheckCircle size={20} color={isDemo ? '#f59e0b' : '#10b981'} />
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <strong style={{ fontSize: '0.95rem' }}>Benchmark Platform Ready</strong>
-              <span className="badge badge-emerald">IDLE</span>
+              <strong style={{ fontSize: '0.95rem', color: isDemo ? '#fbbf24' : '#ffffff' }}>
+                {isDemo ? 'Demo Platform Ready' : 'Benchmark Platform Ready'}
+              </strong>
+              <span className={`badge ${isDemo ? 'badge-amber' : 'badge-emerald'}`}>IDLE</span>
             </div>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.1rem' }}>
-              Select the next locked workload configuration to execute the research benchmark.
+              {isDemo
+                ? 'Configure a live demonstration workload to observe the autoscaling system.'
+                : 'Select the next locked workload configuration to execute the research benchmark.'}
             </p>
           </div>
         </div>

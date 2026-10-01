@@ -133,6 +133,13 @@ export default function App() {
     return () => clearInterval(interval);
   }, [refreshState]);
 
+  const handleAppModeChange = (mode) => {
+    setAppMode(mode);
+    if (mode === 'DEMO' && activeTab !== 'live') {
+      setActiveTab('live');
+    }
+  };
+
   const handleStartExperiment = async (payload) => {
     setIsStarting(true);
     try {
@@ -172,6 +179,7 @@ export default function App() {
 
       {/* 2. Active Experiment Banner & Progress Bar */}
       <ActiveExperimentBanner
+        appMode={appMode}
         activeExp={activeExp}
         backendHealth={backendHealth}
         onStopExperiment={handleStopExperiment}
@@ -201,56 +209,62 @@ export default function App() {
               alignItems: 'center',
               gap: '0.5rem',
               borderRadius: '0.5rem',
-              border: activeTab === 'live' ? '1px solid #06b6d4' : 'transparent',
+              border: activeTab === 'live' ? (appMode === 'DEMO' ? '1px solid #f59e0b' : '1px solid #06b6d4') : 'transparent',
             }}
           >
-            <Activity size={16} color={activeTab === 'live' ? '#06b6d4' : 'currentColor'} />
-            <span>Live Monitor & Telemetry</span>
+            <Activity size={16} color={activeTab === 'live' ? (appMode === 'DEMO' ? '#f59e0b' : '#06b6d4') : 'currentColor'} />
+            <span>{appMode === 'DEMO' ? 'Live Sandbox Telemetry' : 'Live Monitor & Telemetry'}</span>
           </button>
 
-          <button
-            onClick={() => setActiveTab('comparison')}
-            className={`btn ${activeTab === 'comparison' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{
-              padding: '0.6rem 1.25rem',
-              fontSize: '0.85rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              borderRadius: '0.5rem',
-              border: activeTab === 'comparison' ? '1px solid #8b5cf6' : 'transparent',
-              position: 'relative'
-            }}
-          >
-            <Scale size={16} color={activeTab === 'comparison' ? '#8b5cf6' : 'currentColor'} />
-            <span>Benchmark Comparison</span>
-          </button>
+          {appMode === 'RESEARCH' && (
+            <>
+              <button
+                onClick={() => setActiveTab('comparison')}
+                className={`btn ${activeTab === 'comparison' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{
+                  padding: '0.6rem 1.25rem',
+                  fontSize: '0.85rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  borderRadius: '0.5rem',
+                  border: activeTab === 'comparison' ? '1px solid #8b5cf6' : 'transparent',
+                  position: 'relative'
+                }}
+              >
+                <Scale size={16} color={activeTab === 'comparison' ? '#8b5cf6' : 'currentColor'} />
+                <span>Benchmark Comparison</span>
+              </button>
 
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`btn ${activeTab === 'history' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{
-              padding: '0.6rem 1.25rem',
-              fontSize: '0.85rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              borderRadius: '0.5rem',
-              border: activeTab === 'history' ? '1px solid #10b981' : 'transparent',
-            }}
-          >
-            <Database size={16} color={activeTab === 'history' ? '#10b981' : 'currentColor'} />
-            <span>Historical Database</span>
-            <span style={{ fontSize: '0.75rem', opacity: 0.75 }}>({experimentHistory.length})</span>
-          </button>
+              <button
+                onClick={() => setActiveTab('history')}
+                className={`btn ${activeTab === 'history' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{
+                  padding: '0.6rem 1.25rem',
+                  fontSize: '0.85rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  borderRadius: '0.5rem',
+                  border: activeTab === 'history' ? '1px solid #10b981' : 'transparent',
+                }}
+              >
+                <Database size={16} color={activeTab === 'history' ? '#10b981' : 'currentColor'} />
+                <span>Historical Database</span>
+                <span style={{ fontSize: '0.75rem', opacity: 0.75 }}>({experimentHistory.length})</span>
+              </button>
+            </>
+          )}
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingRight: '0.75rem' }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
             Autoscaling Mode:
           </span>
-          <span className={`badge ${activeExp ? (activeExp.autoscalingMode === 'PREDICTIVE_PROPHET_KEDA' ? 'badge-cyan' : 'badge-amber') : 'badge-violet'}`} style={{ fontSize: '0.7rem' }}>
-            {activeExp ? (activeExp.autoscalingMode === 'PREDICTIVE_PROPHET_KEDA' ? 'Prophet + KEDA' : 'Reactive CPU HPA') : 'Sequential Matrix Engine'}
+          <span className={`badge ${activeExp ? (activeExp.autoscalingMode === 'PREDICTIVE_PROPHET_KEDA' ? 'badge-cyan' : 'badge-amber') : (appMode === 'DEMO' ? 'badge-amber' : 'badge-violet')}`} style={{ fontSize: '0.7rem' }}>
+            {activeExp 
+              ? (activeExp.autoscalingMode === 'PREDICTIVE_PROPHET_KEDA' ? 'Prophet + KEDA' : 'Reactive CPU HPA') 
+              : (appMode === 'DEMO' ? 'Interactive Sandbox' : 'Sequential Matrix Engine')}
           </span>
         </div>
       </div>
@@ -267,7 +281,7 @@ export default function App() {
           {/* Experiment Launcher & Scenario Controller */}
           <ExperimentLauncher
             controlMode={appMode}
-            onControlModeChange={setAppMode}
+            onControlModeChange={handleAppModeChange}
             onStartExperiment={handleStartExperiment}
             isStarting={isStarting}
             activeExp={activeExp}
