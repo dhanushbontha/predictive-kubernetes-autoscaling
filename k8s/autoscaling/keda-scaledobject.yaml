@@ -23,7 +23,7 @@ spec:
         serverAddress: http://prometheus-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
         metricName: predicted_workload_requests_per_second
         query: sum(predicted_workload_requests_per_second)
-        threshold: "30"
+        threshold: "20"
   advanced:
     horizontalPodAutoscalerConfig:
       name: workload-service-keda-hpa

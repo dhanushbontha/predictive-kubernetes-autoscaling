@@ -1,0 +1,9 @@
+[
+  {
+    "podName": "workload-service-869f94f74-bp5zt",
+    "triggerTime": "2026-09-22T06:49:46.579790400Z",
+    "podCreationTime": "2026-09-22T06:51:29Z",
+    "podReadyTime": "2026-09-22T06:52:03Z",
+    "scalingDelaySeconds": 136.42
+  }
+]

@@ -1,0 +1,13 @@
+{
+  "run_number": 2,
+  "experiment_id": "c772af8f",
+  "scenario": "STABLE",
+  "controller": "REACTIVE_HPA",
+  "repetition": 1,
+  "target_rps": 30,
+  "duration_seconds": 180,
+  "slo_latency_ms": 200,
+  "calibration": {},
+  "status": "COMPLETED",
+  "timestamp_utc": "2026-09-22T06:59:09.281696+00:00"
+}
