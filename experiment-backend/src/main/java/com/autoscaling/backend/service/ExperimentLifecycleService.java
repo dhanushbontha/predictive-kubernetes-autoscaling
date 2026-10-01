@@ -366,22 +366,22 @@ public class ExperimentLifecycleService {
             ExperimentResult hpaRes = hpaExp.getResult();
             ExperimentResult kedaRes = kedaExp.getResult();
 
-            double hpaP95 = hpaRes.getP95LatencyMs() != null ? hpaRes.getP95LatencyMs() : 0.0;
-            double kedaP95 = kedaRes.getP95LatencyMs() != null ? kedaRes.getP95LatencyMs() : 0.0;
+            double hpaP95 = (hpaRes.getK6P95LatencyMs() != null) ? hpaRes.getK6P95LatencyMs() : (hpaRes.getP95LatencyMs() != null ? hpaRes.getP95LatencyMs() : 0.0);
+            double kedaP95 = (kedaRes.getK6P95LatencyMs() != null) ? kedaRes.getK6P95LatencyMs() : (kedaRes.getP95LatencyMs() != null ? kedaRes.getP95LatencyMs() : 0.0);
             double p95Diff = hpaP95 - kedaP95;
             double p95Pct = (hpaP95 > 0) ? (p95Diff / hpaP95) * 100.0 : 0.0;
 
-            double hpaP99 = hpaRes.getP99LatencyMs() != null ? hpaRes.getP99LatencyMs() : 0.0;
-            double kedaP99 = kedaRes.getP99LatencyMs() != null ? kedaRes.getP99LatencyMs() : 0.0;
+            double hpaP99 = (hpaRes.getK6P99LatencyMs() != null) ? hpaRes.getK6P99LatencyMs() : (hpaRes.getP99LatencyMs() != null ? hpaRes.getP99LatencyMs() : 0.0);
+            double kedaP99 = (kedaRes.getK6P99LatencyMs() != null) ? kedaRes.getK6P99LatencyMs() : (kedaRes.getP99LatencyMs() != null ? kedaRes.getP99LatencyMs() : 0.0);
             double p99Diff = hpaP99 - kedaP99;
             double p99Pct = (hpaP99 > 0) ? (p99Diff / hpaP99) * 100.0 : 0.0;
 
-            long hpaViolations = hpaRes.getSloViolations() != null ? hpaRes.getSloViolations() : 0L;
-            long kedaViolations = kedaRes.getSloViolations() != null ? kedaRes.getSloViolations() : 0L;
+            long hpaViolations = (hpaRes.getK6SloViolations() != null) ? hpaRes.getK6SloViolations() : (hpaRes.getSloViolations() != null ? hpaRes.getSloViolations() : 0L);
+            long kedaViolations = (kedaRes.getK6SloViolations() != null) ? kedaRes.getK6SloViolations() : (kedaRes.getSloViolations() != null ? kedaRes.getSloViolations() : 0L);
             long violationsAvoided = Math.max(0L, hpaViolations - kedaViolations);
 
-            double hpaSloRate = hpaRes.getSloViolationRate() != null ? hpaRes.getSloViolationRate() : 0.0;
-            double kedaSloRate = kedaRes.getSloViolationRate() != null ? kedaRes.getSloViolationRate() : 0.0;
+            double hpaSloRate = (hpaRes.getK6SloViolationRate() != null) ? hpaRes.getK6SloViolationRate() : (hpaRes.getSloViolationRate() != null ? hpaRes.getSloViolationRate() : 0.0);
+            double kedaSloRate = (kedaRes.getK6SloViolationRate() != null) ? kedaRes.getK6SloViolationRate() : (kedaRes.getSloViolationRate() != null ? kedaRes.getSloViolationRate() : 0.0);
             double sloRateReductionPct = (hpaSloRate > 0) ? ((hpaSloRate - kedaSloRate) / hpaSloRate) * 100.0 : 0.0;
 
             double hpaDelay = hpaRes.getAvgScalingDelaySeconds() != null ? hpaRes.getAvgScalingDelaySeconds() : 0.0;

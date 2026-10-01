@@ -33,7 +33,7 @@ const CustomTooltip = ({ active, payload, label, unit = '' }) => {
             <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: entry.color }} />
             <span style={{ color: 'var(--text-secondary)' }}>{entry.name}:</span>
             <strong style={{ color: '#ffffff', fontFamily: 'var(--font-mono)' }}>
-              {typeof entry.value === 'number' ? entry.value.toFixed(1) : entry.value} {unit}
+              {typeof entry.value === 'number' ? entry.value.toFixed(1) : (entry.value ?? 'N/A')} {unit}
             </strong>
           </div>
         ))}

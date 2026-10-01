@@ -1,74 +1,107 @@
 import React from 'react';
-import { Layers, Server, HardDrive, CheckCircle2, ShieldCheck, Box } from 'lucide-react';
+import { Layers, Server, Box, CheckCircle2, ShieldCheck, Activity } from 'lucide-react';
+import { formatInt } from '../services/formatters';
 
 export default function ClusterStatus({ currentReplicas = 0 }) {
   const isOnline = currentReplicas > 0;
-  // Generate visual pod representations only when replicas are active
-  const pods = isOnline
-    ? Array.from({ length: currentReplicas }, (_, i) => ({
-        name: `workload-service-7f8d9b6c-${Math.random().toString(36).substring(2, 7)}`,
-        status: 'Running',
-        ready: '1/1',
-        restarts: 0,
-        cpuUsage: `${(Math.random() * 30 + 35).toFixed(0)}m`,
-        memUsage: `${(Math.random() * 20 + 210).toFixed(0)}Mi`,
-      }))
-    : [];
 
   return (
     <div className="glass-panel" style={{ padding: '1.25rem', marginBottom: '1.5rem' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Layers size={18} color="#06b6d4" />
-          <h3 style={{ fontSize: '0.95rem' }}>Kubernetes Cluster Workload Pods (`autoscaling-experiment`)</h3>
+          <h3 style={{ fontSize: '0.95rem' }}>Kubernetes Workload Cluster Status (`autoscaling-experiment`)</h3>
         </div>
-        <span className={`badge ${isOnline ? 'badge-emerald' : 'badge-zinc'}`}>
-          {isOnline ? `${currentReplicas} PODS HEALTHY` : '0 PODS ACTIVE · CLUSTER OFFLINE'}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span className={`badge ${isOnline ? 'badge-emerald' : 'badge-zinc'}`}>
+            {isOnline ? `${currentReplicas} / 5 PODS READY` : '0 PODS ACTIVE · CLUSTER OFFLINE'}
+          </span>
+          <span className="badge badge-cyan" style={{ fontSize: '0.7rem' }}>
+            DEPLOYMENT: workload-service
+          </span>
+        </div>
       </div>
 
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-secondary)', textAlign: 'left' }}>
-              <th style={{ padding: '0.6rem 0.75rem' }}>Pod Name</th>
-              <th style={{ padding: '0.6rem 0.75rem' }}>Ready</th>
-              <th style={{ padding: '0.6rem 0.75rem' }}>Status</th>
-              <th style={{ padding: '0.6rem 0.75rem' }}>Restarts</th>
-              <th style={{ padding: '0.6rem 0.75rem' }}>CPU (millicores)</th>
-              <th style={{ padding: '0.6rem 0.75rem' }}>Memory</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pods.length === 0 ? (
-              <tr>
-                <td colSpan={6} style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                  No active workload pods detected. Start the Kubernetes / Minikube cluster to view live pod state.
-                </td>
-              </tr>
-            ) : (
-              pods.map((p, idx) => (
-                <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: 'background 0.2s ease' }}>
-                  <td style={{ padding: '0.6rem 0.75rem', fontFamily: 'var(--font-mono)', color: '#ffffff' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <Box size={14} color="#06b6d4" />
-                      {p.name}
-                    </div>
-                  </td>
-                  <td style={{ padding: '0.6rem 0.75rem', color: 'var(--text-secondary)' }}>{p.ready}</td>
-                  <td style={{ padding: '0.6rem 0.75rem' }}>
-                    <span className="badge badge-emerald" style={{ fontSize: '0.7rem' }}>
-                      {p.status}
-                    </span>
-                  </td>
-                  <td style={{ padding: '0.6rem 0.75rem', color: 'var(--text-secondary)' }}>{p.restarts}</td>
-                  <td style={{ padding: '0.6rem 0.75rem', fontFamily: 'var(--font-mono)', color: '#38bdf8' }}>{p.cpuUsage}</td>
-                  <td style={{ padding: '0.6rem 0.75rem', fontFamily: 'var(--font-mono)', color: '#a78bfa' }}>{p.memUsage}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gap: '1rem',
+      }}>
+        {/* Card 1: Workload Deployment State */}
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.02)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: '0.5rem',
+          padding: '1rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.78rem', marginBottom: '0.35rem' }}>
+            <Server size={14} color="#06b6d4" />
+            <span>Target Deployment</span>
+          </div>
+          <div style={{ fontSize: '1rem', fontWeight: 700, color: '#ffffff', fontFamily: 'var(--font-mono)' }}>
+            workload-service
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+            Namespace: <span style={{ color: '#38bdf8' }}>autoscaling-experiment</span>
+          </div>
+        </div>
+
+        {/* Card 2: Replica Pool Allocation */}
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.02)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: '0.5rem',
+          padding: '1rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.78rem', marginBottom: '0.35rem' }}>
+            <Box size={14} color="#10b981" />
+            <span>Ready Pod Replicas</span>
+          </div>
+          <div style={{ fontSize: '1rem', fontWeight: 700, color: isOnline ? '#10b981' : '#f43f5e', fontFamily: 'var(--font-mono)' }}>
+            {formatInt(currentReplicas)} Pods Active
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+            Min: 1 Pod &bull; Max Limit: 5 Pods
+          </div>
+        </div>
+
+        {/* Card 3: Autoscaler Target Configuration */}
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.02)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: '0.5rem',
+          padding: '1rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.78rem', marginBottom: '0.35rem' }}>
+            <Activity size={14} color="#8b5cf6" />
+            <span>Autoscaling Thresholds</span>
+          </div>
+          <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#c4b5fd' }}>
+            KEDA: 20 RPS &bull; HPA: 50% CPU
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+            SLO Response Target: 200 ms
+          </div>
+        </div>
+
+        {/* Card 4: Orchestration Bridge */}
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.02)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: '0.5rem',
+          padding: '1rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.78rem', marginBottom: '0.35rem' }}>
+            <ShieldCheck size={14} color="#34d399" />
+            <span>Telemetry Source</span>
+          </div>
+          <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#34d399' }}>
+            Prometheus + k6 In-Cluster
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+            Direct Fabric8 Pod condition queries
+          </div>
+        </div>
       </div>
     </div>
   );

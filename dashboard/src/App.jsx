@@ -27,14 +27,14 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [timeSeriesData, setTimeSeriesData] = useState([]);
   const [currentMetrics, setCurrentMetrics] = useState({
-    currentReplicas: 0,
-    avgCpuPercent: 0.0,
-    currentRps: 0.0,
-    predictedRps: 0.0,
-    p95LatencyMs: 0.0,
-    p99LatencyMs: 0.0,
-    sloViolationRate: 0.0,
-    totalRequests: 0,
+    currentReplicas: null,
+    avgCpuPercent: null,
+    currentRps: null,
+    predictedRps: null,
+    p95LatencyMs: null,
+    p99LatencyMs: null,
+    sloViolationRate: null,
+    totalRequests: null,
     mae: null,
     rmse: null,
   });
@@ -63,14 +63,14 @@ export default function App() {
 
       if (liveData) {
         setCurrentMetrics({
-          currentReplicas: liveData.currentReplicas ?? 0,
-          avgCpuPercent: liveData.cpuUtilizationPercent ?? 0.0,
-          currentRps: liveData.currentRequestRate ?? 0.0,
-          predictedRps: liveData.predictedRequestRate ?? 0.0,
-          p95LatencyMs: liveData.p95LatencyMs ?? 0.0,
-          p99LatencyMs: liveData.p99LatencyMs ?? 0.0,
-          sloViolationRate: liveData.sloViolationRate ?? 0.0,
-          totalRequests: liveData.totalRequests ?? 0,
+          currentReplicas: liveData.currentReplicas ?? null,
+          avgCpuPercent: liveData.cpuUtilizationPercent ?? null,
+          currentRps: liveData.currentRequestRate ?? null,
+          predictedRps: liveData.predictedRequestRate ?? null,
+          p95LatencyMs: liveData.p95LatencyMs ?? null,
+          p99LatencyMs: liveData.p99LatencyMs ?? null,
+          sloViolationRate: liveData.sloViolationRate ?? null,
+          totalRequests: liveData.totalRequests ?? null,
           mae: liveData.mae ?? null,
           rmse: liveData.rmse ?? null,
         });
@@ -78,25 +78,25 @@ export default function App() {
         const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         const newPoint = {
           time: timeStr,
-          cpuPercent: Number((liveData.cpuUtilizationPercent || 0).toFixed(1)),
-          actualRps: Number((liveData.currentRequestRate || 0).toFixed(1)),
-          predictedRps: Number((liveData.predictedRequestRate || 0).toFixed(1)),
-          replicas: liveData.currentReplicas || 0,
-          p95Latency: Number((liveData.p95LatencyMs || 0).toFixed(1)),
-          p99Latency: Number((liveData.p99LatencyMs || 0).toFixed(1)),
+          cpuPercent: liveData.cpuUtilizationPercent != null ? Number(liveData.cpuUtilizationPercent.toFixed(1)) : 0,
+          actualRps: liveData.currentRequestRate != null ? Number(liveData.currentRequestRate.toFixed(1)) : 0,
+          predictedRps: liveData.predictedRequestRate != null ? Number(liveData.predictedRequestRate.toFixed(1)) : 0,
+          replicas: liveData.currentReplicas != null ? liveData.currentReplicas : 0,
+          p95Latency: liveData.p95LatencyMs != null ? Number(liveData.p95LatencyMs.toFixed(1)) : 0,
+          p99Latency: liveData.p99LatencyMs != null ? Number(liveData.p99LatencyMs.toFixed(1)) : 0,
         };
 
         setTimeSeriesData((prev) => [...prev.slice(-29), newPoint]);
       } else {
         setCurrentMetrics({
-          currentReplicas: 0,
-          avgCpuPercent: 0.0,
-          currentRps: 0.0,
-          predictedRps: 0.0,
-          p95LatencyMs: 0.0,
-          p99LatencyMs: 0.0,
-          sloViolationRate: 0.0,
-          totalRequests: 0,
+          currentReplicas: null,
+          avgCpuPercent: null,
+          currentRps: null,
+          predictedRps: null,
+          p95LatencyMs: null,
+          p99LatencyMs: null,
+          sloViolationRate: null,
+          totalRequests: null,
           mae: null,
           rmse: null,
         });
@@ -109,14 +109,14 @@ export default function App() {
         sessionStorage.setItem('dashboard_backend_health', JSON.stringify(downHealth));
       } catch {}
       setCurrentMetrics({
-        currentReplicas: 0,
-        avgCpuPercent: 0.0,
-        currentRps: 0.0,
-        predictedRps: 0.0,
-        p95LatencyMs: 0.0,
-        p99LatencyMs: 0.0,
-        sloViolationRate: 0.0,
-        totalRequests: 0,
+        currentReplicas: null,
+        avgCpuPercent: null,
+        currentRps: null,
+        predictedRps: null,
+        p95LatencyMs: null,
+        p99LatencyMs: null,
+        sloViolationRate: null,
+        totalRequests: null,
         mae: null,
         rmse: null,
       });
@@ -247,8 +247,8 @@ export default function App() {
           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
             Autoscaling Mode:
           </span>
-          <span className="badge badge-cyan" style={{ fontSize: '0.7rem' }}>
-            Meta Prophet + KEDA
+          <span className={`badge ${activeExp ? (activeExp.autoscalingMode === 'PREDICTIVE_PROPHET_KEDA' ? 'badge-cyan' : 'badge-amber') : 'badge-violet'}`} style={{ fontSize: '0.7rem' }}>
+            {activeExp ? (activeExp.autoscalingMode === 'PREDICTIVE_PROPHET_KEDA' ? 'Meta Prophet + KEDA' : 'Reactive CPU HPA') : 'Sequential Matrix Engine'}
           </span>
         </div>
       </div>

@@ -1,77 +1,90 @@
 import React from 'react';
-import { Cpu, Server, Activity, Clock, ShieldAlert, CheckCircle2, TrendingUp } from 'lucide-react';
+import { Cpu, Server, Activity, Clock, ShieldAlert, TrendingUp } from 'lucide-react';
+import { isMeasured, formatNum, formatPercent, formatMs, formatInt } from '../services/formatters';
 
 export default function MetricsOverview({ currentMetrics }) {
   const {
-    currentReplicas = 0,
-    avgCpuPercent = 0,
-    currentRps = 0,
-    predictedRps = 0,
-    p95LatencyMs = 0,
-    p99LatencyMs = 0,
-    sloViolationRate = 0,
-    totalRequests = 0,
-    mae = 0,
-    rmse = 0,
+    currentReplicas,
+    avgCpuPercent,
+    currentRps,
+    predictedRps,
+    p95LatencyMs,
+    p99LatencyMs,
+    sloViolationRate,
+    totalRequests,
+    mae,
+    rmse,
   } = currentMetrics || {};
 
-  const cpuStatusColor = avgCpuPercent > 75 ? '#f43f5e' : avgCpuPercent > 50 ? '#f59e0b' : '#10b981';
-  const latencyStatusColor = p95LatencyMs > 200 ? '#f43f5e' : p95LatencyMs > 150 ? '#f59e0b' : '#34d399';
+  const hasCpu = isMeasured(avgCpuPercent);
+  const cpuStatusColor = !hasCpu ? '#94a3b8' : avgCpuPercent > 75 ? '#f43f5e' : avgCpuPercent > 50 ? '#f59e0b' : '#10b981';
+
+  const hasP95 = isMeasured(p95LatencyMs);
+  const latencyStatusColor = !hasP95 ? '#94a3b8' : p95LatencyMs > 200 ? '#f43f5e' : p95LatencyMs > 150 ? '#f59e0b' : '#34d399';
+
+  const hasSlo = isMeasured(sloViolationRate);
+  const sloColor = !hasSlo ? '#94a3b8' : sloViolationRate > 5 ? '#f43f5e' : '#10b981';
+
+  const hasMae = isMeasured(mae);
+  const hasRmse = isMeasured(rmse);
+  const hasForecastRps = isMeasured(predictedRps) && predictedRps > 0;
 
   const cards = [
     {
       title: 'Active Pod Replicas',
-      value: `${currentReplicas} / 5`,
+      value: isMeasured(currentReplicas) ? `${currentReplicas} / 5` : 'N/A',
       subtext: 'Min: 1 | Max: 5',
       icon: Server,
       accent: '#06b6d4',
-      badgeText: currentReplicas > 1 ? 'SCALED' : currentReplicas === 1 ? 'BASELINE' : 'OFFLINE',
-      badgeClass: currentReplicas > 1 ? 'badge-cyan' : currentReplicas === 1 ? 'badge-emerald' : 'badge-zinc',
+      badgeText: !isMeasured(currentReplicas) ? 'N/A' : currentReplicas > 1 ? 'SCALED' : currentReplicas === 1 ? 'BASELINE' : 'OFFLINE',
+      badgeClass: !isMeasured(currentReplicas) ? 'badge-zinc' : currentReplicas > 1 ? 'badge-cyan' : currentReplicas === 1 ? 'badge-emerald' : 'badge-zinc',
     },
     {
       title: 'CPU Utilization',
-      value: `${avgCpuPercent.toFixed(1)}%`,
+      value: hasCpu ? `${avgCpuPercent.toFixed(1)}%` : 'N/A',
       subtext: 'Target Threshold: 50.0%',
       icon: Cpu,
       accent: cpuStatusColor,
-      badgeText: avgCpuPercent > 50 ? 'HIGH' : 'NORMAL',
-      badgeClass: avgCpuPercent > 50 ? 'badge-amber' : 'badge-emerald',
+      badgeText: !hasCpu ? 'N/A' : avgCpuPercent > 50 ? 'HIGH' : 'NORMAL',
+      badgeClass: !hasCpu ? 'badge-zinc' : avgCpuPercent > 50 ? 'badge-amber' : 'badge-emerald',
     },
     {
       title: 'Workload Traffic',
-      value: `Actual ${currentRps.toFixed(1)} · Forecast ${predictedRps.toFixed(1)} rps`,
-      subtext: `Forecast Delta: ${((Math.abs(predictedRps - currentRps) / Math.max(1, currentRps)) * 100).toFixed(0)}%`,
+      value: `Actual ${isMeasured(currentRps) ? currentRps.toFixed(1) : 'N/A'} · Forecast ${hasForecastRps ? predictedRps.toFixed(1) + ' RPS' : 'N/A'}`,
+      subtext: hasForecastRps && isMeasured(currentRps) && currentRps > 0
+        ? `Forecast Delta: ${((Math.abs(predictedRps - currentRps) / currentRps) * 100).toFixed(0)}%`
+        : 'Live request rate from Prometheus telemetry',
       icon: Activity,
       accent: '#8b5cf6',
-      badgeText: currentRps > 50 ? 'HIGH LOAD' : 'NORMAL',
-      badgeClass: currentRps > 50 ? 'badge-amber' : 'badge-violet',
+      badgeText: !isMeasured(currentRps) ? 'N/A' : currentRps > 50 ? 'HIGH LOAD' : 'NORMAL',
+      badgeClass: !isMeasured(currentRps) ? 'badge-zinc' : currentRps > 50 ? 'badge-amber' : 'badge-violet',
     },
     {
       title: 'Response Latency',
-      value: `P95 ${p95LatencyMs.toFixed(1)}ms · P99 ${p99LatencyMs.toFixed(1)}ms`,
+      value: `P95 ${hasP95 ? p95LatencyMs.toFixed(1) + 'ms' : 'N/A'} · P99 ${isMeasured(p99LatencyMs) ? p99LatencyMs.toFixed(1) + 'ms' : 'N/A'}`,
       subtext: 'Service Level Objective (SLO): 200ms threshold',
       icon: Clock,
       accent: latencyStatusColor,
-      badgeText: p95LatencyMs > 200 ? 'SLO BREACH' : 'SLO COMPLIANT',
-      badgeClass: p95LatencyMs > 200 ? 'badge-rose' : 'badge-emerald',
+      badgeText: !hasP95 ? 'N/A' : p95LatencyMs > 200 ? 'SLO BREACH' : 'SLO COMPLIANT',
+      badgeClass: !hasP95 ? 'badge-zinc' : p95LatencyMs > 200 ? 'badge-rose' : 'badge-emerald',
     },
     {
       title: 'SLO Violation Rate',
-      value: `${sloViolationRate.toFixed(2)}%`,
-      subtext: `Total Requests: ${totalRequests.toLocaleString()}`,
+      value: hasSlo ? `${sloViolationRate.toFixed(2)}%` : 'N/A',
+      subtext: `Total Requests: ${isMeasured(totalRequests) ? formatInt(totalRequests) : 'N/A'}`,
       icon: ShieldAlert,
-      accent: sloViolationRate > 5 ? '#f43f5e' : '#10b981',
-      badgeText: sloViolationRate > 0 ? `${(sloViolationRate).toFixed(1)}%` : '0%',
-      badgeClass: sloViolationRate > 0 ? 'badge-rose' : 'badge-emerald',
+      accent: sloColor,
+      badgeText: !hasSlo ? 'N/A' : sloViolationRate > 0 ? `${sloViolationRate.toFixed(1)}%` : '0%',
+      badgeClass: !hasSlo ? 'badge-zinc' : sloViolationRate > 0 ? 'badge-rose' : 'badge-emerald',
     },
     {
       title: 'Prophet Accuracy',
-      value: `MAE ${mae ? mae.toFixed(2) : '—'} · RMSE ${rmse ? rmse.toFixed(2) : '—'}`,
+      value: `MAE ${hasMae ? mae.toFixed(2) : 'N/A'} · RMSE ${hasRmse ? rmse.toFixed(2) : 'N/A'}`,
       subtext: 'Out-of-sample forecast evaluation error',
       icon: TrendingUp,
       accent: '#06b6d4',
-      badgeText: mae != null ? 'EVALUATED' : 'READY',
-      badgeClass: mae != null ? 'badge-cyan' : 'badge-zinc',
+      badgeText: hasMae ? 'EVALUATED' : 'N/A',
+      badgeClass: hasMae ? 'badge-cyan' : 'badge-zinc',
     },
   ];
 

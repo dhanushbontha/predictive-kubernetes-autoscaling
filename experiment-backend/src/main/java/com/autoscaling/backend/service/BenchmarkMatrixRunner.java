@@ -139,10 +139,10 @@ public class BenchmarkMatrixRunner {
         sb.append("Scenario,Mode,P95_Latency_ms,P99_Latency_ms,SLO_Breaches,SLO_Breach_Rate_pct,Avg_CPU_pct,Peak_CPU_pct,Peak_Replicas,Avg_Scaling_Delay_s,MAE,RMSE\n");
         for (ExperimentResponse exp : summary.getAllRuns()) {
             ExperimentResult r = exp.getResult();
-            double p95 = (r != null && r.getP95LatencyMs() != null) ? r.getP95LatencyMs() : 0.0;
-            double p99 = (r != null && r.getP99LatencyMs() != null) ? r.getP99LatencyMs() : 0.0;
-            long sloViolations = (r != null && r.getSloViolations() != null) ? r.getSloViolations() : 0L;
-            double sloRate = (r != null && r.getSloViolationRate() != null) ? r.getSloViolationRate() * 100.0 : 0.0;
+            double p95 = (r != null && r.getK6P95LatencyMs() != null) ? r.getK6P95LatencyMs() : ((r != null && r.getP95LatencyMs() != null) ? r.getP95LatencyMs() : 0.0);
+            double p99 = (r != null && r.getK6P99LatencyMs() != null) ? r.getK6P99LatencyMs() : ((r != null && r.getP99LatencyMs() != null) ? r.getP99LatencyMs() : 0.0);
+            long sloViolations = (r != null && r.getK6SloViolations() != null) ? r.getK6SloViolations() : ((r != null && r.getSloViolations() != null) ? r.getSloViolations() : 0L);
+            double sloRate = (r != null && r.getK6SloViolationRate() != null) ? r.getK6SloViolationRate() * 100.0 : ((r != null && r.getSloViolationRate() != null) ? r.getSloViolationRate() * 100.0 : 0.0);
             double avgCpu = (r != null && r.getAvgCpuPercent() != null) ? r.getAvgCpuPercent() : 0.0;
             double peakCpu = (r != null && r.getPeakCpuPercent() != null) ? r.getPeakCpuPercent() : 0.0;
             int peakReps = (r != null && r.getPeakReplicas() != null) ? r.getPeakReplicas() : 1;

@@ -116,9 +116,9 @@ export default function ActiveExperimentBanner({ activeExp, backendHealth, onSto
               </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', marginTop: '0.35rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-              <span>Target: <strong style={{ color: '#ffffff' }}>{activeExp.targetRps} RPS</strong></span>
-              <span>SLO: <strong style={{ color: '#ffffff' }}>{activeExp.sloLatencyMs} ms</strong></span>
-              <span>Horizon: <strong style={{ color: '#ffffff' }}>{activeExp.forecastHorizonSeconds} s</strong></span>
+              <span>Target: <strong style={{ color: '#ffffff' }}>{activeExp.targetRps != null ? `${activeExp.targetRps} RPS` : 'N/A'}</strong></span>
+              <span>SLO: <strong style={{ color: '#ffffff' }}>{activeExp.sloLatencyMs != null ? `${activeExp.sloLatencyMs} ms` : 'N/A'}</strong></span>
+              <span>Horizon: <strong style={{ color: '#ffffff' }}>{activeExp.forecastHorizonSeconds != null ? `${activeExp.forecastHorizonSeconds} s` : 'N/A'}</strong></span>
             </div>
           </div>
         </div>

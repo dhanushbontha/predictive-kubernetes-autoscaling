@@ -3,24 +3,21 @@ import {
   Database,
   Search,
   Filter,
-  Download,
-  FileText,
   FileSpreadsheet,
+  FileText,
   CheckCircle2,
-  XCircle,
-  Clock,
-  AlertTriangle,
-  Layers,
-  ChevronRight,
-  Eye,
-  X,
-  Copy,
-  Check,
   RefreshCw,
-  Cpu,
   Zap,
   Activity,
+  X,
+  Eye,
+  Copy,
+  Check,
+  Server,
+  Clock,
+  ShieldCheck,
 } from 'lucide-react';
+import { isMeasured, formatInt, formatMs, formatPercent, formatSeconds, formatMaeRmse } from '../services/formatters';
 
 export default function HistoryView({ history = [], onRefresh }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -67,16 +64,19 @@ export default function HistoryView({ history = [], onRefresh }) {
     let totalReqs = 0;
 
     items.forEach((i) => {
-      if (i.result?.p95LatencyMs) {
-        sumP95 += i.result.p95LatencyMs;
+      const r = i.result;
+      const p95 = r?.k6P95LatencyMs ?? r?.p95LatencyMs;
+      if (isMeasured(p95)) {
+        sumP95 += Number(p95);
         p95Count++;
       }
-      if (i.result?.totalRequests) {
-        totalReqs += i.result.totalRequests;
+      const reqs = r?.k6TotalRequests ?? r?.totalRequests;
+      if (isMeasured(reqs)) {
+        totalReqs += Number(reqs);
       }
     });
 
-    const avgP95 = p95Count > 0 ? (sumP95 / p95Count).toFixed(1) : '—';
+    const avgP95 = p95Count > 0 ? (sumP95 / p95Count).toFixed(1) : 'N/A';
 
     return { total, completed, avgP95, totalReqs };
   }, [items]);
@@ -142,7 +142,7 @@ export default function HistoryView({ history = [], onRefresh }) {
             <Zap size={16} color="#06b6d4" />
           </div>
           <div style={{ fontSize: '1.6rem', fontWeight: 700, marginTop: '0.25rem', color: '#06b6d4' }}>
-            {stats.avgP95 !== '—' ? `${stats.avgP95} ms` : '—'}
+            {stats.avgP95 !== 'N/A' ? `${stats.avgP95} ms` : 'N/A'}
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
             Across completed benchmark runs
@@ -155,10 +155,10 @@ export default function HistoryView({ history = [], onRefresh }) {
             <Activity size={16} color="#f59e0b" />
           </div>
           <div style={{ fontSize: '1.6rem', fontWeight: 700, marginTop: '0.25rem', color: '#f59e0b' }}>
-            {stats.totalReqs.toLocaleString()}
+            {formatInt(stats.totalReqs)}
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-            Observed in completed experiments
+            Discrete k6 request telemetry
           </div>
         </div>
       </div>
@@ -240,7 +240,7 @@ export default function HistoryView({ history = [], onRefresh }) {
             <span>Scenario:</span>
           </div>
 
-          {['ALL', 'BURSTY', 'PERIODIC', 'GRADUAL', 'NOISY', 'STABLE'].map((sc) => (
+          {['ALL', 'STABLE', 'BURSTY', 'PERIODIC', 'GRADUAL', 'NOISY'].map((sc) => (
             <button
               key={sc}
               onClick={() => setScenarioFilter(sc)}
@@ -300,10 +300,10 @@ export default function HistoryView({ history = [], onRefresh }) {
                 <th style={{ padding: '0.65rem 0.75rem' }}>Target RPS</th>
                 <th style={{ padding: '0.65rem 0.75rem' }}>P95 Latency</th>
                 <th style={{ padding: '0.65rem 0.75rem' }}>P99 Latency</th>
-                <th style={{ padding: '0.65rem 0.75rem' }}>SLO Breaches</th>
+                <th style={{ padding: '0.65rem 0.75rem' }}>SLO Violations (%)</th>
                 <th style={{ padding: '0.65rem 0.75rem' }}>Avg CPU</th>
                 <th style={{ padding: '0.65rem 0.75rem' }}>Peak Pods</th>
-                <th style={{ padding: '0.65rem 0.75rem' }}>Scaling Delay</th>
+                <th style={{ padding: '0.65rem 0.75rem' }}>D_E2E (t_ready - t_0)</th>
                 <th style={{ padding: '0.65rem 0.75rem' }}>Status</th>
                 <th style={{ padding: '0.65rem 0.75rem', textAlign: 'center' }}>Audit</th>
               </tr>
@@ -321,13 +321,14 @@ export default function HistoryView({ history = [], onRefresh }) {
                   const isPredictive = modeStr.includes('PREDICTIVE');
                   const r = item.result;
 
-                  const p95 = r?.p95LatencyMs != null ? r.p95LatencyMs : null;
-                  const p99 = r?.p99LatencyMs != null ? r.p99LatencyMs : null;
-                  const sloBreaches = r?.sloViolations != null ? r.sloViolations : null;
-                  const sloPct = r?.sloViolationRate != null ? (r.sloViolationRate * 100).toFixed(1) : null;
-                  const avgCpu = r?.avgCpuPercent != null ? `${r.avgCpuPercent.toFixed(1)}%` : '—';
-                  const peakReps = r?.peakReplicas != null ? `${r.peakReplicas} Pods` : '—';
-                  const delay = r?.avgScalingDelaySeconds != null ? `${r.avgScalingDelaySeconds.toFixed(1)}s` : '—';
+                  // Prioritize exact k6 discrete measurements
+                  const p95 = r?.k6P95LatencyMs ?? r?.p95LatencyMs ?? null;
+                  const p99 = r?.k6P99LatencyMs ?? r?.p99LatencyMs ?? null;
+                  const sloViolations = r?.k6SloViolations ?? r?.sloViolations ?? null;
+                  const sloRate = r?.k6SloViolationRate ?? r?.sloViolationRate ?? null;
+                  const avgCpu = r?.avgCpuPercent ?? null;
+                  const peakReps = r?.peakReplicas ?? null;
+                  const dE2e = r?.avgScalingDelaySeconds ?? null;
 
                   const status = item.status || 'COMPLETED';
                   let statusBadgeClass = 'badge-emerald';
@@ -357,7 +358,7 @@ export default function HistoryView({ history = [], onRefresh }) {
 
                       <td style={{ padding: '0.65rem 0.75rem' }}>
                         <span className="badge badge-violet" style={{ fontSize: '0.7rem' }}>
-                          {item.scenario}
+                          {item.scenario || 'N/A'}
                         </span>
                       </td>
 
@@ -371,7 +372,7 @@ export default function HistoryView({ history = [], onRefresh }) {
                       </td>
 
                       <td style={{ padding: '0.65rem 0.75rem', fontFamily: 'var(--font-mono)' }}>
-                        {item.targetRps || 150} RPS
+                        {isMeasured(item.targetRps) ? `${item.targetRps} RPS` : 'N/A'}
                       </td>
 
                       <td
@@ -379,14 +380,14 @@ export default function HistoryView({ history = [], onRefresh }) {
                           padding: '0.65rem 0.75rem',
                           fontFamily: 'var(--font-mono)',
                           fontWeight: 600,
-                          color: p95 != null ? (p95 > 200 ? '#f43f5e' : '#34d399') : 'var(--text-secondary)',
+                          color: !isMeasured(p95) ? 'var(--text-secondary)' : p95 > 200 ? '#f43f5e' : '#34d399',
                         }}
                       >
-                        {p95 != null ? `${p95.toFixed(1)} ms` : '—'}
+                        {formatMs(p95)}
                       </td>
 
                       <td style={{ padding: '0.65rem 0.75rem', fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
-                        {p99 != null ? `${p99.toFixed(1)} ms` : '—'}
+                        {formatMs(p99)}
                       </td>
 
                       <td
@@ -394,22 +395,24 @@ export default function HistoryView({ history = [], onRefresh }) {
                           padding: '0.65rem 0.75rem',
                           fontFamily: 'var(--font-mono)',
                           fontWeight: 600,
-                          color: sloBreaches != null ? (sloBreaches > 0 ? '#f43f5e' : '#10b981') : 'var(--text-secondary)',
+                          color: !isMeasured(sloViolations) ? 'var(--text-secondary)' : sloViolations > 0 ? '#f43f5e' : '#10b981',
                         }}
                       >
-                        {sloBreaches != null ? `${sloBreaches} (${sloPct}%)` : '—'}
+                        {isMeasured(sloViolations)
+                          ? `${formatInt(sloViolations)} (${isMeasured(sloRate) ? (sloRate * 100).toFixed(2) + '%' : 'N/A'})`
+                          : 'N/A'}
                       </td>
 
                       <td style={{ padding: '0.65rem 0.75rem', fontFamily: 'var(--font-mono)' }}>
-                        {avgCpu}
+                        {formatPercent(avgCpu)}
                       </td>
 
                       <td style={{ padding: '0.65rem 0.75rem', fontFamily: 'var(--font-mono)', color: '#06b6d4' }}>
-                        {peakReps}
+                        {isMeasured(peakReps) ? `${peakReps} Pods` : 'N/A'}
                       </td>
 
                       <td style={{ padding: '0.65rem 0.75rem', fontFamily: 'var(--font-mono)', color: isPredictive ? '#34d399' : '#f59e0b' }}>
-                        {delay}
+                        {formatSeconds(dE2e)}
                       </td>
 
                       <td style={{ padding: '0.65rem 0.75rem' }}>
@@ -478,7 +481,7 @@ export default function HistoryView({ history = [], onRefresh }) {
                   </h2>
                 </div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                  {selectedExp.name} &bull; Recorded: {selectedExp.startTime ? new Date(selectedExp.startTime).toLocaleString() : 'N/A'}
+                  {selectedExp.name} &bull; Recorded: {selectedExp.startTime ? new Date(selectedExp.startTime).toUTCString() : 'N/A'}
                 </div>
               </div>
 
@@ -506,108 +509,140 @@ export default function HistoryView({ history = [], onRefresh }) {
               <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)' }}>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Workload Scenario</div>
                 <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#c4b5fd', marginTop: '2px' }}>
-                  {selectedExp.scenario}
+                  {selectedExp.scenario || 'N/A'}
                 </div>
               </div>
 
               <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)' }}>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Autoscaling Mode</div>
                 <div style={{ fontSize: '0.9rem', fontWeight: 600, color: selectedExp.autoscalingMode?.includes('PREDICTIVE') ? '#67e8f9' : '#fcd34d', marginTop: '2px' }}>
-                  {selectedExp.autoscalingMode}
+                  {selectedExp.autoscalingMode || 'N/A'}
                 </div>
               </div>
 
               <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)' }}>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Traffic Load</div>
                 <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#ffffff', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
-                  {selectedExp.targetRps} RPS &bull; {selectedExp.durationSeconds}s
+                  {isMeasured(selectedExp.targetRps) ? `${selectedExp.targetRps} RPS` : 'N/A'} &bull; {isMeasured(selectedExp.durationSeconds) ? `${selectedExp.durationSeconds}s` : 'N/A'}
                 </div>
               </div>
 
               <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)' }}>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>SLO Latency Target</div>
                 <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#ffffff', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
-                  {selectedExp.sloLatencyMs || 200} ms
+                  {isMeasured(selectedExp.sloLatencyMs) ? `${selectedExp.sloLatencyMs} ms` : '200 ms'}
                 </div>
               </div>
             </div>
 
-            {/* Metrics Breakdown Grid */}
-            <h3 style={{ fontSize: '0.9rem', marginBottom: '0.75rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Experiment Measured Telemetry
+            {/* Section 1: Discrete k6 Request-Level Telemetry */}
+            <h3 style={{ fontSize: '0.85rem', marginBottom: '0.6rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              1. Discrete k6 Request Telemetry (Primary Ground Truth)
             </h3>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', marginBottom: '1.25rem' }}>
               <div style={{ background: 'rgba(255,255,255,0.02)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>P95 Latency</div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: selectedExp.result?.p95LatencyMs > 200 ? '#f43f5e' : '#34d399', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
-                  {selectedExp.result?.p95LatencyMs ? `${selectedExp.result.p95LatencyMs.toFixed(1)} ms` : '—'}
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Total Requests (k6)</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#ffffff', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
+                  {formatInt(selectedExp.result?.k6TotalRequests ?? selectedExp.result?.totalRequests)}
                 </div>
               </div>
 
               <div style={{ background: 'rgba(255,255,255,0.02)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>P99 Latency</div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#ffffff', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
-                  {selectedExp.result?.p99LatencyMs ? `${selectedExp.result.p99LatencyMs.toFixed(1)} ms` : '—'}
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>P95 Latency (k6)</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: (selectedExp.result?.k6P95LatencyMs ?? selectedExp.result?.p95LatencyMs) > 200 ? '#f43f5e' : '#34d399', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
+                  {formatMs(selectedExp.result?.k6P95LatencyMs ?? selectedExp.result?.p95LatencyMs)}
                 </div>
               </div>
 
               <div style={{ background: 'rgba(255,255,255,0.02)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>SLO Violations</div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: selectedExp.result?.sloViolations > 0 ? '#f43f5e' : '#10b981', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
-                  {selectedExp.result?.sloViolations ?? 0}
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>P99 Latency (k6)</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#ffffff', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
+                  {formatMs(selectedExp.result?.k6P99LatencyMs ?? selectedExp.result?.p99LatencyMs)}
                 </div>
               </div>
 
               <div style={{ background: 'rgba(255,255,255,0.02)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Scaling Lag</div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f59e0b', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
-                  {selectedExp.result?.avgScalingDelaySeconds ? `${selectedExp.result.avgScalingDelaySeconds.toFixed(1)}s` : '—'}
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>SLO Violations (&gt;200ms)</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: (selectedExp.result?.k6SloViolations ?? selectedExp.result?.sloViolations) > 0 ? '#f43f5e' : '#10b981', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
+                  {isMeasured(selectedExp.result?.k6SloViolations ?? selectedExp.result?.sloViolations)
+                    ? `${formatInt(selectedExp.result?.k6SloViolations ?? selectedExp.result?.sloViolations)} (${formatPercent((selectedExp.result?.k6SloViolationRate ?? selectedExp.result?.sloViolationRate) * 100, 2)})`
+                    : 'N/A'}
                 </div>
               </div>
+            </div>
+
+            {/* Section 2: Scaling Delays (Verified D_E2E and D_provision) */}
+            <h3 style={{ fontSize: '0.85rem', marginBottom: '0.6rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              2. Scaling Delays & Resource Dynamics
+            </h3>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1.25rem' }}>
+              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>D_E2E Response Lag (t_ready - t_0)</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#f59e0b', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
+                  {formatSeconds(selectedExp.result?.avgScalingDelaySeconds)}
+                </div>
+              </div>
+
+              {selectedExp.result?.scalingEvents && selectedExp.result.scalingEvents.length > 0 && (
+                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)' }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>D_provision (t_ready - t_creation)</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#06b6d4', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
+                    {(() => {
+                      const se = selectedExp.result.scalingEvents[0];
+                      if (se.podReadyTime && se.podCreationTime) {
+                        const dProv = (new Date(se.podReadyTime) - new Date(se.podCreationTime)) / 1000;
+                        return formatSeconds(dProv);
+                      }
+                      return 'N/A';
+                    })()}
+                  </div>
+                </div>
+              )}
 
               <div style={{ background: 'rgba(255,255,255,0.02)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)' }}>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Avg / Peak CPU</div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#ffffff', marginTop: '4px', fontFamily: 'var(--font-mono)' }}>
-                  {selectedExp.result?.avgCpuPercent?.toFixed(1)}% / {selectedExp.result?.peakCpuPercent?.toFixed(1)}%
+                  {formatPercent(selectedExp.result?.avgCpuPercent)} / {formatPercent(selectedExp.result?.peakCpuPercent)}
                 </div>
               </div>
 
               <div style={{ background: 'rgba(255,255,255,0.02)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)' }}>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Peak Replicas</div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#06b6d4', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
-                  {selectedExp.result?.peakReplicas ?? 1} Pods
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Peak Pod Replicas</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#06b6d4', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
+                  {isMeasured(selectedExp.result?.peakReplicas) ? `${selectedExp.result.peakReplicas} Pods` : 'N/A'}
                 </div>
               </div>
             </div>
 
-            {/* Model Accuracy Section (if predictive) */}
+            {/* Section 3: Forecast Accuracy (Out-of-sample) */}
             {selectedExp.autoscalingMode?.includes('PREDICTIVE') && (
-              <div style={{ background: 'rgba(6, 182, 212, 0.05)', border: '1px solid rgba(6, 182, 212, 0.2)', borderRadius: '0.5rem', padding: '1rem', marginBottom: '1.5rem' }}>
+              <div style={{ background: 'rgba(6, 182, 212, 0.05)', border: '1px solid rgba(6, 182, 212, 0.2)', borderRadius: '0.5rem', padding: '1rem', marginBottom: '1.25rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
                   <Zap size={16} color="#06b6d4" />
                   <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#67e8f9' }}>
-                    Meta Prophet Forecast Accuracy Metrics
+                    Meta Prophet Out-of-Sample Forecast Accuracy (60s Horizon)
                   </span>
                 </div>
-                <div style={{ display: 'flex', gap: '2rem', fontSize: '0.85rem' }}>
+                <div style={{ display: 'flex', gap: '2rem', fontSize: '0.85rem', flexWrap: 'wrap' }}>
                   <div>
                     <span style={{ color: 'var(--text-secondary)' }}>Mean Absolute Error (MAE): </span>
                     <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: '#ffffff' }}>
-                      {selectedExp.result?.mae != null ? `${selectedExp.result.mae.toFixed(2)} RPS` : '—'}
+                      {formatMaeRmse(selectedExp.result?.mae)}
                     </span>
                   </div>
                   <div>
                     <span style={{ color: 'var(--text-secondary)' }}>Root Mean Squared Error (RMSE): </span>
                     <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: '#ffffff' }}>
-                      {selectedExp.result?.rmse != null ? `${selectedExp.result.rmse.toFixed(2)} RPS` : '—'}
+                      {formatMaeRmse(selectedExp.result?.rmse)}
                     </span>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Raw JSON Snapshot View */}
+            {/* Section 4: Raw JSON Snapshot View */}
             <details style={{ background: 'rgba(0,0,0,0.5)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)' }}>
               <summary style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                 View Raw PostgreSQL Entity Snapshot
