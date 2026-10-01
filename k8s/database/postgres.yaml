@@ -69,13 +69,17 @@ spec:
           readinessProbe:
             exec:
               command: ["pg_isready", "-U", "postgres", "-d", "autoscaling_db"]
-            initialDelaySeconds: 5
-            periodSeconds: 5
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
           livenessProbe:
             exec:
               command: ["pg_isready", "-U", "postgres", "-d", "autoscaling_db"]
-            initialDelaySeconds: 15
-            periodSeconds: 10
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 5
           volumeMounts:
             - name: postgres-storage
               mountPath: /var/lib/postgresql/data
