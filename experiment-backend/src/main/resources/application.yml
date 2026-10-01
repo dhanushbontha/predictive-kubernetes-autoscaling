@@ -8,9 +8,9 @@ spring:
   lifecycle:
     timeout-per-shutdown-phase: 20s
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres:5432/autoscaling_db}
-    username: ${SPRING_DATASOURCE_USERNAME:}
-    password: ${SPRING_DATASOURCE_PASSWORD:}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:15432/autoscaling_db}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:password}
     driver-class-name: ${SPRING_DATASOURCE_DRIVER:org.postgresql.Driver}
     hikari:
       connection-timeout: 3000
@@ -45,8 +45,8 @@ app:
     workload-service: workload-service
     k6-configmap: k6-workload-scripts
   prometheus:
-    url: ${PROMETHEUS_URL:http://prometheus-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090}
+    url: ${PROMETHEUS_URL:http://localhost:9090}
     connect-timeout-ms: 5000
     read-timeout-ms: 5000
   forecasting:
-    url: ${FORECASTING_URL:http://forecasting-service:8000}
+    url: ${FORECASTING_URL:http://localhost:8000}

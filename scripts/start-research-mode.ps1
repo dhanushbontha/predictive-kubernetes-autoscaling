@@ -60,7 +60,7 @@ if ($minikubeStatus -ne "Running") {
 # Step 3: Verify Minikube & Kubernetes Nodes
 # ---------------------------------------------------------------------
 Write-Host "`n[3/10] Verifying Kubernetes cluster node readiness..." -ForegroundColor Yellow
-$nodeStatus = kubectl get nodes -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}'
+$nodeStatus = kubectl get nodes -o jsonpath='{.items[0].status.conditions[?(@.type==''Ready'')].status}'
 if ($nodeStatus -eq "True") {
     $nodeName = kubectl get nodes -o jsonpath='{.items[0].metadata.name}'
     Write-Host "  [OK] Kubernetes Node '$nodeName' is Ready" -ForegroundColor Green
@@ -128,8 +128,8 @@ Get-Process -Name "kubectl" -ErrorAction SilentlyContinue | Where-Object {
 $promSvc = "prometheus-kube-prometheus-prometheus"
 try {
     $discoveredProm = kubectl get svc -n monitoring -o jsonpath='{.items[?(@.spec.ports[*].port==9090)].metadata.name}' 2>$null
-    if ($discoveredProm) {
-        $promSvc = ($discoveredProm -split " ")[0]
+    if ($discoveredProm -and $discoveredProm.Trim() -ne "") {
+        $promSvc = ($discoveredProm.Trim() -split "\s+")[0]
     }
 } catch {}
 
