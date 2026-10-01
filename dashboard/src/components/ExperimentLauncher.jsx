@@ -48,7 +48,7 @@ const DEMO_SCENARIOS = [
 const AUTOSCALING_MODES = [
   {
     id: 'PREDICTIVE_PROPHET_KEDA',
-    name: 'Predictive (Meta Prophet + KEDA)',
+    name: 'Predictive (Prophet + KEDA)',
     desc: 'Proactive time-series forecasting ahead of spikes. Eliminates reactive pod creation lag.',
     badge: 'PREDICTIVE',
     badgeClass: 'badge-cyan',
