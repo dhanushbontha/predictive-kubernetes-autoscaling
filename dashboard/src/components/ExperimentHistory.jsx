@@ -1,6 +1,7 @@
 import React from 'react';
 import { Database } from 'lucide-react';
 import { isMeasured, formatInt, formatMs, formatPercent } from '../services/formatters';
+import { isDemoExperiment } from '../services/researchMatrix';
 
 export default function ExperimentHistory({ history = [] }) {
   const rawItems = history || [];
@@ -44,6 +45,7 @@ export default function ExperimentHistory({ history = [] }) {
               </tr>
             ) : (
               rawItems.map((item, idx) => {
+                const isDemo = isDemoExperiment(item);
                 const modeStr = item.autoscalingMode || item.mode || '';
                 const isPredictive = modeStr.includes('PREDICTIVE');
                 const r = item.result;
@@ -66,6 +68,14 @@ export default function ExperimentHistory({ history = [] }) {
                 return (
                   <tr key={item.id || idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)', transition: 'background 0.2s ease' }}>
                     <td style={{ padding: '0.6rem 0.75rem', fontFamily: 'var(--font-mono)', color: '#ffffff' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '2px' }}>
+                        <span 
+                          className={`badge ${isDemo ? 'badge-amber' : 'badge-emerald'}`} 
+                          style={{ fontSize: '0.65rem', padding: '0.1rem 0.35rem' }}
+                        >
+                          {isDemo ? '🎮 DEMO' : '🔬 RESEARCH'}
+                        </span>
+                      </div>
                       {item.id ? item.id.substring(0, 8) : (item.name || `run-${idx}`)}
                     </td>
                     <td style={{ padding: '0.6rem 0.75rem' }}>

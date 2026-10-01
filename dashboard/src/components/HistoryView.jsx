@@ -18,9 +18,11 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { isMeasured, formatInt, formatMs, formatPercent, formatSeconds, formatMaeRmse } from '../services/formatters';
+import { isDemoExperiment } from '../services/researchMatrix';
 
 export default function HistoryView({ history = [], onRefresh }) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('ALL'); // 'ALL' | 'RESEARCH' | 'DEMO'
   const [scenarioFilter, setScenarioFilter] = useState('ALL');
   const [modeFilter, setModeFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -35,6 +37,12 @@ export default function HistoryView({ history = [], onRefresh }) {
   // Filtered experiments
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
+      const isDemo = isDemoExperiment(item);
+      const matchCategory =
+        categoryFilter === 'ALL' ||
+        (categoryFilter === 'RESEARCH' && !isDemo) ||
+        (categoryFilter === 'DEMO' && isDemo);
+
       const q = searchTerm.toLowerCase();
       const matchSearch =
         !searchTerm ||
@@ -51,9 +59,9 @@ export default function HistoryView({ history = [], onRefresh }) {
 
       const matchStatus = statusFilter === 'ALL' || item.status === statusFilter;
 
-      return matchSearch && matchScenario && matchMode && matchStatus;
+      return matchCategory && matchSearch && matchScenario && matchMode && matchStatus;
     });
-  }, [items, searchTerm, scenarioFilter, modeFilter, statusFilter]);
+  }, [items, categoryFilter, searchTerm, scenarioFilter, modeFilter, statusFilter]);
 
   // Summary Aggregate Stats from actual completed runs
   const stats = useMemo(() => {
@@ -235,8 +243,39 @@ export default function HistoryView({ history = [], onRefresh }) {
 
         {/* Filter Pills */}
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-subtle)' }}>
+          
+          {/* Category Filter */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
             <Filter size={14} />
+            <span>Category:</span>
+          </div>
+
+          {[
+            { id: 'ALL', label: 'All Experiments' },
+            { id: 'RESEARCH', label: '🔬 Official Research Matrix' },
+            { id: 'DEMO', label: '🎮 Demo Sandbox' },
+          ].map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setCategoryFilter(cat.id)}
+              style={{
+                padding: '0.3rem 0.65rem',
+                fontSize: '0.75rem',
+                borderRadius: '0.375rem',
+                border: categoryFilter === cat.id ? '1px solid #10b981' : '1px solid var(--border-subtle)',
+                background: categoryFilter === cat.id ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.03)',
+                color: categoryFilter === cat.id ? '#34d399' : 'var(--text-secondary)',
+                cursor: 'pointer',
+                fontWeight: categoryFilter === cat.id ? 700 : 400,
+              }}
+            >
+              {cat.label}
+            </button>
+          ))}
+
+          <div style={{ width: '1px', height: '18px', background: 'var(--border-subtle)', margin: '0 0.25rem' }} />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
             <span>Scenario:</span>
           </div>
 
@@ -317,6 +356,7 @@ export default function HistoryView({ history = [], onRefresh }) {
                 </tr>
               ) : (
                 filteredItems.map((item, idx) => {
+                  const isDemo = isDemoExperiment(item);
                   const modeStr = item.autoscalingMode || item.mode || '';
                   const isPredictive = modeStr.includes('PREDICTIVE');
                   const r = item.result;
@@ -348,6 +388,14 @@ export default function HistoryView({ history = [], onRefresh }) {
                       onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                     >
                       <td style={{ padding: '0.65rem 0.75rem', fontFamily: 'var(--font-mono)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '2px' }}>
+                          <span 
+                            className={`badge ${isDemo ? 'badge-amber' : 'badge-emerald'}`} 
+                            style={{ fontSize: '0.65rem', padding: '0.1rem 0.35rem' }}
+                          >
+                            {isDemo ? '🎮 DEMO' : '🔬 RESEARCH'}
+                          </span>
+                        </div>
                         <div style={{ fontWeight: 600, color: '#ffffff' }}>
                           {item.id ? item.id.substring(0, 16) : `run-${idx}`}
                         </div>

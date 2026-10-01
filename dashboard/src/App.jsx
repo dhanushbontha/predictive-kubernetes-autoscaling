@@ -267,6 +267,7 @@ export default function App() {
             onStartExperiment={handleStartExperiment}
             isStarting={isStarting}
             activeExp={activeExp}
+            history={experimentHistory}
           />
 
           {/* Active Cluster Pods Status */}
