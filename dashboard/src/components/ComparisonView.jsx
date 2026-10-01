@@ -19,6 +19,7 @@ import {
 } from 'recharts';
 import { getComparison } from '../services/api';
 import { isMeasured, formatInt, formatMs, formatPercent, formatSeconds, formatMaeRmse } from '../services/formatters';
+import { isDemoExperiment } from '../services/researchMatrix';
 
 const SCENARIOS = [
   { id: 'STABLE', label: 'Stable Load', desc: 'Constant uniform workload (30 RPS benchmark baseline)' },
@@ -28,26 +29,33 @@ const SCENARIOS = [
   { id: 'NOISY', label: 'Noisy Fluctuations', desc: 'Stochastic random jitter fluctuations' },
 ];
 
-export default function ComparisonView({ history = [] }) {
+export default function ComparisonView({ history = [], appMode = 'RESEARCH' }) {
   const [selectedScenario, setSelectedScenario] = useState('STABLE');
   const [comparisonData, setComparisonData] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  const isDemoMode = appMode === 'DEMO';
+  const modeHistory = history.filter((e) => (isDemoMode ? isDemoExperiment(e) : !isDemoExperiment(e)));
 
   // Auto-find latest HPA and KEDA runs for the chosen scenario
   useEffect(() => {
     async function loadComparison() {
       setLoading(true);
       try {
-        const hpaRun = history.find(
+        const hpaRun = modeHistory.find(
           (e) => e.scenario === selectedScenario && e.autoscalingMode === 'REACTIVE_HPA' && (e.status === 'COMPLETED' || e.status === 'VALID')
         );
-        const kedaRun = history.find(
+        const kedaRun = modeHistory.find(
           (e) => e.scenario === selectedScenario && e.autoscalingMode === 'PREDICTIVE_PROPHET_KEDA' && (e.status === 'COMPLETED' || e.status === 'VALID')
         );
 
-        const data = await getComparison(hpaRun?.id, kedaRun?.id);
-        if (data) {
-          setComparisonData(data);
+        if (hpaRun && kedaRun) {
+          const data = await getComparison(hpaRun?.id, kedaRun?.id);
+          if (data) {
+            setComparisonData(data);
+          }
+        } else {
+          setComparisonData(null);
         }
       } catch (err) {
         console.warn('Comparison load warning:', err.message);
@@ -56,7 +64,7 @@ export default function ComparisonView({ history = [] }) {
       }
     }
     loadComparison();
-  }, [selectedScenario, history]);
+  }, [selectedScenario, history, appMode]);
 
   const hpa = comparisonData?.reactiveHpaExperiment?.result || null;
   const keda = comparisonData?.predictiveKedaExperiment?.result || null;
@@ -74,25 +82,29 @@ export default function ComparisonView({ history = [] }) {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               <div style={{
-                background: 'linear-gradient(135deg, rgba(139,92,246,0.2) 0%, rgba(6,182,212,0.2) 100%)',
+                background: isDemoMode 
+                  ? 'linear-gradient(135deg, rgba(245,158,11,0.2) 0%, rgba(6,182,212,0.2) 100%)'
+                  : 'linear-gradient(135deg, rgba(139,92,246,0.2) 0%, rgba(6,182,212,0.2) 100%)',
                 padding: '0.6rem',
                 borderRadius: '10px',
-                border: '1px solid rgba(139,92,246,0.4)',
+                border: isDemoMode ? '1px solid rgba(245,158,11,0.4)' : '1px solid rgba(139,92,246,0.4)',
               }}>
-                <Scale size={22} color="#8b5cf6" />
+                <Scale size={22} color={isDemoMode ? '#f59e0b' : '#8b5cf6'} />
               </div>
               <div>
                 <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#ffffff' }}>
-                  Benchmark Comparison & Evaluation Engine
+                  {isDemoMode ? 'Demo Sandbox Comparison & Evaluation' : 'Benchmark Comparison & Evaluation Engine'}
                 </h2>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                  Head-to-head empirical evaluation: Reactive HPA vs Predictive Prophet + KEDA
+                  {isDemoMode 
+                    ? 'Side-by-side empirical evaluation of live demo experiments'
+                    : 'Head-to-head empirical evaluation: Reactive HPA vs Predictive Prophet + KEDA'}
                 </p>
               </div>
             </div>
-            <span className="badge badge-zinc" style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}>
+            <span className={`badge ${isDemoMode ? 'badge-amber' : 'badge-zinc'}`} style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}>
               <Sparkles size={13} style={{ marginRight: '4px' }} />
-              AWAITING COMPLETE PAIR
+              {isDemoMode ? 'DEMO SANDBOX EVALUATION' : 'AWAITING COMPLETE PAIR'}
             </span>
           </div>
 
@@ -112,7 +124,7 @@ export default function ComparisonView({ history = [] }) {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.4rem',
-                    border: isSelected ? '1px solid #06b6d4' : '1px solid var(--border-subtle)',
+                    border: isSelected ? (isDemoMode ? '1px solid #f59e0b' : '1px solid #06b6d4') : '1px solid var(--border-subtle)',
                   }}
                 >
                   <span style={{ fontWeight: isSelected ? 700 : 500 }}>{sc.label}</span>
@@ -124,12 +136,14 @@ export default function ComparisonView({ history = [] }) {
 
         {/* Empty State Banner */}
         <div className="glass-panel" style={{ textAlign: 'center', padding: '3.5rem 1.5rem' }}>
-          <Scale size={48} color="#64748b" style={{ margin: '0 auto 1rem', opacity: 0.6 }} />
+          <Scale size={48} color={isDemoMode ? '#f59e0b' : '#64748b'} style={{ margin: '0 auto 1rem', opacity: 0.6 }} />
           <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#ffffff', marginBottom: '0.5rem' }}>
-            Awaiting Paired Benchmark Data for {selectedScenario}
+            {isDemoMode ? 'No demo comparison data available yet.' : `Awaiting Paired Benchmark Data for ${selectedScenario}`}
           </h3>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', maxWidth: '540px', margin: '0 auto', lineHeight: 1.6 }}>
-            {!hasHpa && !hasKeda
+            {isDemoMode
+              ? `Neither Reactive (HPA) nor Predictive (Prophet + KEDA) demo experiments have been executed for the ${selectedScenario} scenario yet. Run both demo configurations in Live Sandbox Telemetry to compare live performance.`
+              : !hasHpa && !hasKeda
               ? `Neither Reactive (HPA) nor Predictive (KEDA) experiments have been completed for the ${selectedScenario} scenario yet. Execute both controller runs to generate verified side-by-side comparative analytics.`
               : hasHpa
               ? `Reactive HPA experiment completed (P95: ${formatMs(hpa.k6P95LatencyMs ?? hpa.p95LatencyMs)}), but no Predictive KEDA run exists for ${selectedScenario}. Run a Predictive KEDA experiment to compare performance.`

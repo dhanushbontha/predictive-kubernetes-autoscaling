@@ -20,7 +20,7 @@ import {
 import { isMeasured, formatInt, formatMs, formatPercent, formatSeconds, formatMaeRmse } from '../services/formatters';
 import { isDemoExperiment } from '../services/researchMatrix';
 
-export default function HistoryView({ history = [], onRefresh }) {
+export default function HistoryView({ history = [], onRefresh, appMode = 'RESEARCH' }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL'); // 'ALL' | 'RESEARCH' | 'DEMO'
   const [scenarioFilter, setScenarioFilter] = useState('ALL');
@@ -29,10 +29,13 @@ export default function HistoryView({ history = [], onRefresh }) {
   const [selectedExp, setSelectedExp] = useState(null);
   const [copiedJson, setCopiedJson] = useState(false);
 
-  // Use genuine history passed from backend API
+  const isDemoMode = appMode === 'DEMO';
+
+  // Use mode-separated history: Demo Mode sees ONLY demo runs; Research Mode sees ONLY research runs.
   const items = useMemo(() => {
-    return Array.isArray(history) ? history : [];
-  }, [history]);
+    if (!Array.isArray(history)) return [];
+    return history.filter((item) => (isDemoMode ? isDemoExperiment(item) : !isDemoExperiment(item)));
+  }, [history, isDemoMode]);
 
   // Filtered experiments
   const filteredItems = useMemo(() => {
@@ -63,7 +66,7 @@ export default function HistoryView({ history = [], onRefresh }) {
     });
   }, [items, categoryFilter, searchTerm, scenarioFilter, modeFilter, statusFilter]);
 
-  // Summary Aggregate Stats from actual completed runs
+  // Summary Aggregate Stats from actual completed runs of the active mode
   const stats = useMemo(() => {
     const total = items.length;
     const completed = items.filter((i) => i.status === 'COMPLETED').length;
@@ -97,7 +100,7 @@ export default function HistoryView({ history = [], onRefresh }) {
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(items, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute('download', `benchmark_history_${Date.now()}.json`);
+    downloadAnchor.setAttribute('download', `${isDemoMode ? 'demo' : 'benchmark'}_history_${Date.now()}.json`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
@@ -120,27 +123,31 @@ export default function HistoryView({ history = [], onRefresh }) {
       }}>
         <div className="glass-panel" style={{ padding: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Total Experiments</span>
-            <Database size={16} color="#8b5cf6" />
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              {isDemoMode ? 'Total Demo Experiments' : 'Total Experiments'}
+            </span>
+            <Database size={16} color={isDemoMode ? '#f59e0b' : '#8b5cf6'} />
           </div>
           <div style={{ fontSize: '1.6rem', fontWeight: 700, marginTop: '0.25rem', color: '#ffffff' }}>
             {stats.total}
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-            Persisted in PostgreSQL database
+            {isDemoMode ? 'Demo sandbox executions' : 'Persisted in PostgreSQL database'}
           </div>
         </div>
 
         <div className="glass-panel" style={{ padding: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Completed Runs</span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              {isDemoMode ? 'Completed Demo Runs' : 'Completed Runs'}
+            </span>
             <CheckCircle2 size={16} color="#10b981" />
           </div>
           <div style={{ fontSize: '1.6rem', fontWeight: 700, marginTop: '0.25rem', color: '#10b981' }}>
             {stats.completed}
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-            Available for comparative pairing
+            {isDemoMode ? 'Finished sandbox trials' : 'Available for comparative pairing'}
           </div>
         </div>
 
@@ -244,34 +251,41 @@ export default function HistoryView({ history = [], onRefresh }) {
         {/* Filter Pills */}
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-subtle)' }}>
           
-          {/* Category Filter */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-            <Filter size={14} />
-            <span>Category:</span>
-          </div>
+          {/* Category Filter / Mode Badge */}
+          {isDemoMode ? (
+            <span className="badge badge-amber" style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}>
+              🎮 Demo Sandbox Experiments
+            </span>
+          ) : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                <Filter size={14} />
+                <span>Category:</span>
+              </div>
 
-          {[
-            { id: 'ALL', label: 'All Experiments' },
-            { id: 'RESEARCH', label: '🔬 Official Research Matrix' },
-            { id: 'DEMO', label: '🎮 Demo Sandbox' },
-          ].map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setCategoryFilter(cat.id)}
-              style={{
-                padding: '0.3rem 0.65rem',
-                fontSize: '0.75rem',
-                borderRadius: '0.375rem',
-                border: categoryFilter === cat.id ? '1px solid #10b981' : '1px solid var(--border-subtle)',
-                background: categoryFilter === cat.id ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.03)',
-                color: categoryFilter === cat.id ? '#34d399' : 'var(--text-secondary)',
-                cursor: 'pointer',
-                fontWeight: categoryFilter === cat.id ? 700 : 400,
-              }}
-            >
-              {cat.label}
-            </button>
-          ))}
+              {[
+                { id: 'ALL', label: 'All Research Records' },
+                { id: 'RESEARCH', label: '🔬 Official 30-Run Matrix' },
+              ].map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => setCategoryFilter(cat.id)}
+                  style={{
+                    padding: '0.3rem 0.65rem',
+                    fontSize: '0.75rem',
+                    borderRadius: '0.375rem',
+                    border: categoryFilter === cat.id ? '1px solid #10b981' : '1px solid var(--border-subtle)',
+                    background: categoryFilter === cat.id ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.03)',
+                    color: categoryFilter === cat.id ? '#34d399' : 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    fontWeight: categoryFilter === cat.id ? 700 : 400,
+                  }}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </>
+          )}
 
           <div style={{ width: '1px', height: '18px', background: 'var(--border-subtle)', margin: '0 0.25rem' }} />
 
@@ -348,7 +362,21 @@ export default function HistoryView({ history = [], onRefresh }) {
               </tr>
             </thead>
             <tbody>
-              {filteredItems.length === 0 ? (
+              {items.length === 0 ? (
+                <tr>
+                  <td colSpan={12} style={{ padding: '3rem 1.5rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                    <Database size={36} color={isDemoMode ? '#f59e0b' : '#64748b'} style={{ margin: '0 auto 0.75rem', opacity: 0.6 }} />
+                    <strong style={{ fontSize: '1rem', color: '#ffffff', display: 'block', marginBottom: '0.35rem' }}>
+                      {isDemoMode ? 'No demo experiments available yet.' : 'No research experiments available yet.'}
+                    </strong>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+                      {isDemoMode
+                        ? 'Launch a live demonstration workload from the Live Sandbox Telemetry tab to record sandbox experiment metrics here.'
+                        : 'Execute research benchmark runs to populate the research history database.'}
+                    </p>
+                  </td>
+                </tr>
+              ) : filteredItems.length === 0 ? (
                 <tr>
                   <td colSpan={12} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
                     No experiment records matched the active filters.

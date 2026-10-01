@@ -9,6 +9,7 @@ import ClusterStatus from './components/ClusterStatus';
 import HistoryView from './components/HistoryView';
 import ComparisonView from './components/ComparisonView';
 import { checkHealth, getActiveExperiment, startExperiment, stopExperiment, getLiveSeries, getExperimentHistory, getLiveTelemetry } from './services/api';
+import { isDemoExperiment } from './services/researchMatrix';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('live'); // 'live' | 'comparison' | 'history'
@@ -135,9 +136,6 @@ export default function App() {
 
   const handleAppModeChange = (mode) => {
     setAppMode(mode);
-    if (mode === 'DEMO' && activeTab !== 'live') {
-      setActiveTab('live');
-    }
   };
 
   const handleStartExperiment = async (payload) => {
@@ -166,6 +164,9 @@ export default function App() {
     }
   };
 
+  const isDemo = appMode === 'DEMO';
+  const modeExperimentCount = experimentHistory.filter((e) => (isDemo ? isDemoExperiment(e) : !isDemoExperiment(e))).length;
+
   return (
     <div style={{ maxWidth: '1440px', margin: '0 auto', padding: '1.5rem' }}>
       
@@ -186,7 +187,7 @@ export default function App() {
         isStopping={isStopping}
       />
 
-      {/* Top Tab Navigation Bar */}
+      {/* Top Tab Navigation Bar (Restored in BOTH Research Mode and Demo Mode) */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -209,62 +210,58 @@ export default function App() {
               alignItems: 'center',
               gap: '0.5rem',
               borderRadius: '0.5rem',
-              border: activeTab === 'live' ? (appMode === 'DEMO' ? '1px solid #f59e0b' : '1px solid #06b6d4') : 'transparent',
+              border: activeTab === 'live' ? (isDemo ? '1px solid #f59e0b' : '1px solid #06b6d4') : 'transparent',
             }}
           >
-            <Activity size={16} color={activeTab === 'live' ? (appMode === 'DEMO' ? '#f59e0b' : '#06b6d4') : 'currentColor'} />
-            <span>{appMode === 'DEMO' ? 'Live Sandbox Telemetry' : 'Live Monitor & Telemetry'}</span>
+            <Activity size={16} color={activeTab === 'live' ? (isDemo ? '#f59e0b' : '#06b6d4') : 'currentColor'} />
+            <span>{isDemo ? 'Live Sandbox Telemetry' : 'Live Monitor & Telemetry'}</span>
           </button>
 
-          {appMode === 'RESEARCH' && (
-            <>
-              <button
-                onClick={() => setActiveTab('comparison')}
-                className={`btn ${activeTab === 'comparison' ? 'btn-primary' : 'btn-secondary'}`}
-                style={{
-                  padding: '0.6rem 1.25rem',
-                  fontSize: '0.85rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  borderRadius: '0.5rem',
-                  border: activeTab === 'comparison' ? '1px solid #8b5cf6' : 'transparent',
-                  position: 'relative'
-                }}
-              >
-                <Scale size={16} color={activeTab === 'comparison' ? '#8b5cf6' : 'currentColor'} />
-                <span>Benchmark Comparison</span>
-              </button>
+          <button
+            onClick={() => setActiveTab('comparison')}
+            className={`btn ${activeTab === 'comparison' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{
+              padding: '0.6rem 1.25rem',
+              fontSize: '0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              borderRadius: '0.5rem',
+              border: activeTab === 'comparison' ? (isDemo ? '1px solid #f59e0b' : '1px solid #8b5cf6') : 'transparent',
+              position: 'relative'
+            }}
+          >
+            <Scale size={16} color={activeTab === 'comparison' ? (isDemo ? '#f59e0b' : '#8b5cf6') : 'currentColor'} />
+            <span>Benchmark Comparison</span>
+          </button>
 
-              <button
-                onClick={() => setActiveTab('history')}
-                className={`btn ${activeTab === 'history' ? 'btn-primary' : 'btn-secondary'}`}
-                style={{
-                  padding: '0.6rem 1.25rem',
-                  fontSize: '0.85rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  borderRadius: '0.5rem',
-                  border: activeTab === 'history' ? '1px solid #10b981' : 'transparent',
-                }}
-              >
-                <Database size={16} color={activeTab === 'history' ? '#10b981' : 'currentColor'} />
-                <span>Historical Database</span>
-                <span style={{ fontSize: '0.75rem', opacity: 0.75 }}>({experimentHistory.length})</span>
-              </button>
-            </>
-          )}
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`btn ${activeTab === 'history' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{
+              padding: '0.6rem 1.25rem',
+              fontSize: '0.85rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              borderRadius: '0.5rem',
+              border: activeTab === 'history' ? (isDemo ? '1px solid #f59e0b' : '1px solid #10b981') : 'transparent',
+            }}
+          >
+            <Database size={16} color={activeTab === 'history' ? (isDemo ? '#f59e0b' : '#10b981') : 'currentColor'} />
+            <span>Historical Database</span>
+            <span style={{ fontSize: '0.75rem', opacity: 0.75 }}>({modeExperimentCount})</span>
+          </button>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', paddingRight: '0.75rem' }}>
           <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
             Autoscaling Mode:
           </span>
-          <span className={`badge ${activeExp ? (activeExp.autoscalingMode === 'PREDICTIVE_PROPHET_KEDA' ? 'badge-cyan' : 'badge-amber') : (appMode === 'DEMO' ? 'badge-amber' : 'badge-violet')}`} style={{ fontSize: '0.7rem' }}>
+          <span className={`badge ${activeExp ? (activeExp.autoscalingMode === 'PREDICTIVE_PROPHET_KEDA' ? 'badge-cyan' : 'badge-amber') : (isDemo ? 'badge-amber' : 'badge-violet')}`} style={{ fontSize: '0.7rem' }}>
             {activeExp 
               ? (activeExp.autoscalingMode === 'PREDICTIVE_PROPHET_KEDA' ? 'Prophet + KEDA' : 'Reactive CPU HPA') 
-              : (appMode === 'DEMO' ? 'Interactive Sandbox' : 'Sequential Matrix Engine')}
+              : (isDemo ? 'Interactive Sandbox' : 'Sequential Matrix Engine')}
           </span>
         </div>
       </div>
@@ -293,14 +290,14 @@ export default function App() {
         </>
       )}
 
-      {/* Tab 2: Side-by-Side Benchmark Comparison */}
+      {/* Tab 2: Side-by-Side Benchmark Comparison (Mode-Separated) */}
       {activeTab === 'comparison' && (
-        <ComparisonView history={experimentHistory} />
+        <ComparisonView history={experimentHistory} appMode={appMode} />
       )}
 
-      {/* Tab 3: Historical Database Table & Audit Trail Explorer */}
+      {/* Tab 3: Historical Database Table (Mode-Separated) */}
       {activeTab === 'history' && (
-        <HistoryView history={experimentHistory} onRefresh={refreshState} />
+        <HistoryView history={experimentHistory} appMode={appMode} onRefresh={refreshState} />
       )}
 
       {/* Footer */}
