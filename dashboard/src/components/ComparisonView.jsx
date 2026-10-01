@@ -35,46 +35,86 @@ export default function ComparisonView({ history = [], appMode = 'RESEARCH' }) {
   const [loading, setLoading] = useState(false);
 
   const isDemoMode = appMode === 'DEMO';
-  const modeHistory = history.filter((e) => (isDemoMode ? isDemoExperiment(e) : !isDemoExperiment(e)));
+  const modeHistory = React.useMemo(() => {
+    return Array.isArray(history) 
+      ? history.filter((e) => (isDemoMode ? isDemoExperiment(e) : !isDemoExperiment(e)))
+      : [];
+  }, [history, isDemoMode]);
+
+  const hpaRun = React.useMemo(() => {
+    return modeHistory.find(
+      (e) => e.scenario === selectedScenario && e.autoscalingMode === 'REACTIVE_HPA' && (e.status === 'COMPLETED' || e.status === 'VALID')
+    ) || null;
+  }, [modeHistory, selectedScenario]);
+
+  const kedaRun = React.useMemo(() => {
+    return modeHistory.find(
+      (e) => e.scenario === selectedScenario && e.autoscalingMode === 'PREDICTIVE_PROPHET_KEDA' && (e.status === 'COMPLETED' || e.status === 'VALID')
+    ) || null;
+  }, [modeHistory, selectedScenario]);
+
+  const hasHpa = Boolean(hpaRun);
+  const hasKeda = Boolean(kedaRun);
 
   // Auto-find latest HPA and KEDA runs for the chosen scenario
   useEffect(() => {
     async function loadComparison() {
-      setLoading(true);
-      try {
-        const hpaRun = modeHistory.find(
-          (e) => e.scenario === selectedScenario && e.autoscalingMode === 'REACTIVE_HPA' && (e.status === 'COMPLETED' || e.status === 'VALID')
-        );
-        const kedaRun = modeHistory.find(
-          (e) => e.scenario === selectedScenario && e.autoscalingMode === 'PREDICTIVE_PROPHET_KEDA' && (e.status === 'COMPLETED' || e.status === 'VALID')
-        );
-
-        if (hpaRun && kedaRun) {
-          const data = await getComparison(hpaRun?.id, kedaRun?.id);
+      if (hpaRun && kedaRun) {
+        setLoading(true);
+        try {
+          const data = await getComparison(hpaRun.id, kedaRun.id);
           if (data) {
             setComparisonData(data);
+          } else {
+            setComparisonData(null);
           }
-        } else {
+        } catch (err) {
+          console.warn('Comparison load warning:', err.message);
           setComparisonData(null);
+        } finally {
+          setLoading(false);
         }
-      } catch (err) {
-        console.warn('Comparison load warning:', err.message);
-      } finally {
-        setLoading(false);
+      } else {
+        setComparisonData(null);
       }
     }
     loadComparison();
-  }, [selectedScenario, history, appMode]);
+  }, [hpaRun, kedaRun]);
 
   const hpa = comparisonData?.reactiveHpaExperiment?.result || null;
   const keda = comparisonData?.predictiveKedaExperiment?.result || null;
   const hpaMeta = comparisonData?.reactiveHpaExperiment || null;
   const kedaMeta = comparisonData?.predictiveKedaExperiment || null;
-  const hasBoth = Boolean(hpa && keda);
-  const hasHpa = Boolean(hpa);
-  const hasKeda = Boolean(keda);
+  const hasBoth = Boolean(hasHpa && hasKeda && hpa && keda);
 
   if (!hasBoth) {
+    let emptyTitle = '';
+    let emptyDesc = '';
+
+    if (isDemoMode) {
+      if (!hasHpa && !hasKeda) {
+        emptyTitle = 'No demo comparison data available yet.';
+        emptyDesc = 'Neither Reactive (HPA) nor Predictive (Prophet + KEDA) demo experiments have been completed for this scenario yet.';
+      } else if (hasHpa && !hasKeda) {
+        emptyTitle = 'No predictive demo comparison data available yet.';
+        emptyDesc = 'Reactive HPA demo experiments are available for this scenario, but no completed Predictive (Prophet + KEDA) demo experiment is available for comparison yet.';
+      } else if (!hasHpa && hasKeda) {
+        emptyTitle = 'No reactive demo comparison data available yet.';
+        emptyDesc = 'Predictive (Prophet + KEDA) demo experiments are available for this scenario, but no completed Reactive HPA demo experiment is available for comparison yet.';
+      }
+    } else {
+      emptyTitle = `Awaiting Paired Benchmark Data for ${selectedScenario}`;
+      if (!hasHpa && !hasKeda) {
+        emptyDesc = `Neither Reactive (HPA) nor Predictive (KEDA) experiments have been completed for the ${selectedScenario} scenario yet. Execute both controller runs to generate verified side-by-side comparative analytics.`;
+      } else if (hasHpa && !hasKeda) {
+        const hpaP95 = hpaRun?.result?.k6P95LatencyMs ?? hpaRun?.result?.p95LatencyMs;
+        emptyDesc = `Reactive HPA experiment completed (P95: ${formatMs(hpaP95)}), but no Predictive KEDA run exists for ${selectedScenario}. Run a Predictive KEDA experiment to compare performance.`;
+      } else if (!hasHpa && hasKeda) {
+        const kedaP95 = kedaRun?.result?.k6P95LatencyMs ?? kedaRun?.result?.p95LatencyMs;
+        emptyDesc = `Predictive KEDA experiment completed (P95: ${formatMs(kedaP95)}), but no Reactive HPA run exists for ${selectedScenario}. Run a Reactive HPA experiment to compare performance.`;
+      }
+    }
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2rem' }}>
         {/* Header & Scenario Selector */}
@@ -138,16 +178,10 @@ export default function ComparisonView({ history = [], appMode = 'RESEARCH' }) {
         <div className="glass-panel" style={{ textAlign: 'center', padding: '3.5rem 1.5rem' }}>
           <Scale size={48} color={isDemoMode ? '#f59e0b' : '#64748b'} style={{ margin: '0 auto 1rem', opacity: 0.6 }} />
           <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#ffffff', marginBottom: '0.5rem' }}>
-            {isDemoMode ? 'No demo comparison data available yet.' : `Awaiting Paired Benchmark Data for ${selectedScenario}`}
+            {emptyTitle}
           </h3>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', maxWidth: '540px', margin: '0 auto', lineHeight: 1.6 }}>
-            {isDemoMode
-              ? `Neither Reactive (HPA) nor Predictive (Prophet + KEDA) demo experiments have been executed for the ${selectedScenario} scenario yet. Run both demo configurations in Live Sandbox Telemetry to compare live performance.`
-              : !hasHpa && !hasKeda
-              ? `Neither Reactive (HPA) nor Predictive (KEDA) experiments have been completed for the ${selectedScenario} scenario yet. Execute both controller runs to generate verified side-by-side comparative analytics.`
-              : hasHpa
-              ? `Reactive HPA experiment completed (P95: ${formatMs(hpa.k6P95LatencyMs ?? hpa.p95LatencyMs)}), but no Predictive KEDA run exists for ${selectedScenario}. Run a Predictive KEDA experiment to compare performance.`
-              : `Predictive KEDA experiment completed (P95: ${formatMs(keda.k6P95LatencyMs ?? keda.p95LatencyMs)}), but no Reactive HPA run exists for ${selectedScenario}. Run a Reactive HPA experiment to compare performance.`}
+            {emptyDesc}
           </p>
         </div>
       </div>
