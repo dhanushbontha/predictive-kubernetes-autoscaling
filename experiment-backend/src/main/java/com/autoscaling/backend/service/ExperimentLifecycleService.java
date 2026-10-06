@@ -240,7 +240,7 @@ public class ExperimentLifecycleService {
     public List<ExperimentResponse> listExperiments() {
         try {
             List<ExperimentEntity> dbList = experimentRepository.findAllByOrderByStartTimeDesc();
-            if (dbList != null && !dbList.isEmpty()) {
+            if (dbList != null) {
                 List<ExperimentResponse> list = new ArrayList<>();
                 Instant now = Instant.now();
                 for (ExperimentEntity entity : dbList) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Activity, Scale, Database, Sparkles } from 'lucide-react';
 import Header from './components/Header';
 import ActiveExperimentBanner from './components/ActiveExperimentBanner';
@@ -11,38 +11,56 @@ import ComparisonView from './components/ComparisonView';
 import { checkHealth, getActiveExperiment, startExperiment, stopExperiment, getLiveSeries, getExperimentHistory, getLiveTelemetry } from './services/api';
 import { isDemoExperiment } from './services/researchMatrix';
 
+const DEFAULT_METRICS = {
+  currentReplicas: null,
+  avgCpuPercent: null,
+  currentRps: null,
+  predictedRps: null,
+  p95LatencyMs: null,
+  p99LatencyMs: null,
+  sloViolationRate: null,
+  totalRequests: null,
+  mae: null,
+  rmse: null,
+};
+
+function loadSessionJson(key, defaultValue) {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return defaultValue;
+    return JSON.parse(raw);
+  } catch {
+    return defaultValue;
+  }
+}
+
+function saveSessionJson(key, value) {
+  try {
+    if (value === undefined || value === null) {
+      sessionStorage.removeItem(key);
+    } else {
+      sessionStorage.setItem(key, JSON.stringify(value));
+    }
+  } catch {}
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('live'); // 'live' | 'comparison' | 'history'
   const [appMode, setAppMode] = useState('RESEARCH'); // 'RESEARCH' | 'DEMO'
-  const [backendHealth, setBackendHealth] = useState(() => {
-    try {
-      const cached = sessionStorage.getItem('dashboard_backend_health');
-      return cached ? JSON.parse(cached) : null;
-    } catch {
-      return null;
-    }
-  });
-  const [activeExp, setActiveExp] = useState(null);
-  const [experimentHistory, setExperimentHistory] = useState([]);
+  const [backendHealth, setBackendHealth] = useState(() => loadSessionJson('dashboard_backend_health', null));
+  const [activeExp, setActiveExp] = useState(() => loadSessionJson('dashboard_active_exp', null));
+  const [experimentHistory, setExperimentHistory] = useState(() => loadSessionJson('dashboard_experiment_history', []));
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [timeSeriesData, setTimeSeriesData] = useState([]);
-  const [currentMetrics, setCurrentMetrics] = useState({
-    currentReplicas: null,
-    avgCpuPercent: null,
-    currentRps: null,
-    predictedRps: null,
-    p95LatencyMs: null,
-    p99LatencyMs: null,
-    sloViolationRate: null,
-    totalRequests: null,
-    mae: null,
-    rmse: null,
-  });
+  const [timeSeriesData, setTimeSeriesData] = useState(() => loadSessionJson('dashboard_timeseries_data', []));
+  const [currentMetrics, setCurrentMetrics] = useState(() => loadSessionJson('dashboard_current_metrics', DEFAULT_METRICS));
+
+  const lastRequestIdRef = useRef(0);
 
   // Fetch live system state from Backend API
   const refreshState = useCallback(async () => {
+    const requestId = ++lastRequestIdRef.current;
     setIsRefreshing(true);
     try {
       const [health, exp, historyList, liveData] = await Promise.all([
@@ -52,19 +70,26 @@ export default function App() {
         getLiveTelemetry(),
       ]);
 
+      // Guard against race conditions from out-of-order responses
+      if (requestId !== lastRequestIdRef.current) {
+        return;
+      }
+
       if (health) {
         setBackendHealth(health);
-        try {
-          sessionStorage.setItem('dashboard_backend_health', JSON.stringify(health));
-        } catch {}
+        saveSessionJson('dashboard_backend_health', health);
       }
+
       setActiveExp(exp);
+      saveSessionJson('dashboard_active_exp', exp);
+
       if (historyList && Array.isArray(historyList)) {
         setExperimentHistory(historyList);
+        saveSessionJson('dashboard_experiment_history', historyList);
       }
 
       if (liveData) {
-        setCurrentMetrics({
+        const updatedMetrics = {
           currentReplicas: liveData.currentReplicas ?? null,
           avgCpuPercent: liveData.cpuUtilizationPercent ?? null,
           currentRps: liveData.currentRequestRate ?? null,
@@ -75,7 +100,9 @@ export default function App() {
           totalRequests: liveData.totalRequests ?? null,
           mae: liveData.mae ?? null,
           rmse: liveData.rmse ?? null,
-        });
+        };
+        setCurrentMetrics(updatedMetrics);
+        saveSessionJson('dashboard_current_metrics', updatedMetrics);
 
         const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         const newPoint = {
@@ -88,44 +115,22 @@ export default function App() {
           p99Latency: liveData.p99LatencyMs != null ? Number(liveData.p99LatencyMs.toFixed(1)) : 0,
         };
 
-        setTimeSeriesData((prev) => [...prev.slice(-29), newPoint]);
-      } else {
-        setCurrentMetrics({
-          currentReplicas: null,
-          avgCpuPercent: null,
-          currentRps: null,
-          predictedRps: null,
-          p95LatencyMs: null,
-          p99LatencyMs: null,
-          sloViolationRate: null,
-          totalRequests: null,
-          mae: null,
-          rmse: null,
+        setTimeSeriesData((prev) => {
+          const next = [...prev.slice(-29), newPoint];
+          saveSessionJson('dashboard_timeseries_data', next);
+          return next;
         });
       }
     } catch (err) {
-      console.warn('Dashboard poll error:', err.message);
-      const downHealth = { status: 'DOWN' };
-      setBackendHealth(downHealth);
-      try {
-        sessionStorage.setItem('dashboard_backend_health', JSON.stringify(downHealth));
-      } catch {}
-      setCurrentMetrics({
-        currentReplicas: null,
-        avgCpuPercent: null,
-        currentRps: null,
-        predictedRps: null,
-        p95LatencyMs: null,
-        p99LatencyMs: null,
-        sloViolationRate: null,
-        totalRequests: null,
-        mae: null,
-        rmse: null,
-      });
+      if (requestId === lastRequestIdRef.current) {
+        console.warn('Dashboard poll error:', err.message);
+      }
     } finally {
-      setIsRefreshing(false);
+      if (requestId === lastRequestIdRef.current) {
+        setIsRefreshing(false);
+      }
     }
-  }, [activeExp]);
+  }, []);
 
   // Initial load and periodic interval
   useEffect(() => {
@@ -143,6 +148,7 @@ export default function App() {
     try {
       const started = await startExperiment(payload);
       setActiveExp(started);
+      saveSessionJson('dashboard_active_exp', started);
       await refreshState();
     } catch (err) {
       alert(`Failed to start experiment: ${err.response?.data?.message || err.message}`);
@@ -156,6 +162,7 @@ export default function App() {
     try {
       const stopped = await stopExperiment();
       setActiveExp(stopped);
+      saveSessionJson('dashboard_active_exp', stopped);
       await refreshState();
     } catch (err) {
       alert(`Failed to stop experiment: ${err.response?.data?.message || err.message}`);

@@ -1,0 +1,34 @@
+{
+  "run_number": 3,
+  "experiment_id": "ff0760d7",
+  "scenario": "PERIODIC",
+  "controller": "PREDICTIVE_PROPHET_KEDA",
+  "repetition": 1,
+  "target_rps": 60,
+  "duration_seconds": 180,
+  "slo_latency_ms": 200,
+  "calibration": {
+    "warmup_start_utc": "2026-10-01T10:18:07.795227+00:00",
+    "warmup_end_utc": "2026-10-01T10:20:09.929086+00:00",
+    "training_start_utc": "2026-10-01T10:19:07.795227+00:00",
+    "training_end_utc": "2026-10-01T10:20:09.929086+00:00",
+    "training_sample_count": 13,
+    "model_ready": true,
+    "initial_predicted_rps": 10.0,
+    "train_response": {
+      "status": "SUCCESS",
+      "message": "Model trained on 13 points (Out-of-sample MAE: 2.9327, RMSE: 3.9406)",
+      "data_points_trained": 13,
+      "training_duration_seconds": 0.0767,
+      "predicted_rps": 10.0,
+      "mae": 2.9327,
+      "rmse": 3.9406,
+      "training_start_utc": "2026-10-01T10:19:07.795227Z",
+      "training_end_utc": "2026-10-01T10:20:09.929086Z",
+      "earliest_training_sample": "2026-10-01T10:19:07.795000Z",
+      "latest_training_sample": "2026-10-01T10:20:07.795000Z"
+    }
+  },
+  "status": "COMPLETED",
+  "timestamp_utc": "2026-10-01T10:23:47.988026+00:00"
+}

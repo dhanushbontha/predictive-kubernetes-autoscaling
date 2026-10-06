@@ -316,10 +316,10 @@ export default function ExperimentLauncher({
                   <Zap size={12} color="#34d399" /> FORECAST HORIZON
                 </span>
                 <strong style={{ fontSize: '0.95rem', color: '#ffffff', display: 'block', marginTop: '0.2rem' }}>
-                  {scheduledRun.controller === 'PREDICTIVE_PROPHET_KEDA' ? '60 Seconds' : 'N/A (Reactive)'}
+                  {scheduledRun.controller === 'PREDICTIVE_PROPHET_KEDA' ? '60 seconds' : 'N/A (Reactive)'}
                 </strong>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                  Frequency: 5s
+                  Frequency: {scheduledRun.controller === 'PREDICTIVE_PROPHET_KEDA' ? '5 seconds' : 'N/A (Reactive)'}
                 </span>
               </div>
 

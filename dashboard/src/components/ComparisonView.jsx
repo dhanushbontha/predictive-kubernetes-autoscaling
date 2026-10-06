@@ -33,6 +33,7 @@ export default function ComparisonView({ history = [], appMode = 'RESEARCH' }) {
   const [selectedScenario, setSelectedScenario] = useState('STABLE');
   const [comparisonData, setComparisonData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const comparisonReqIdRef = React.useRef(0);
 
   const isDemoMode = appMode === 'DEMO';
   const modeHistory = React.useMemo(() => {
@@ -60,22 +61,26 @@ export default function ComparisonView({ history = [], appMode = 'RESEARCH' }) {
   useEffect(() => {
     async function loadComparison() {
       if (hpaRun && kedaRun) {
+        const reqId = ++comparisonReqIdRef.current;
         setLoading(true);
         try {
           const data = await getComparison(hpaRun.id, kedaRun.id);
-          if (data) {
-            setComparisonData(data);
-          } else {
-            setComparisonData(null);
+          if (reqId === comparisonReqIdRef.current) {
+            setComparisonData(data || null);
           }
         } catch (err) {
-          console.warn('Comparison load warning:', err.message);
-          setComparisonData(null);
+          if (reqId === comparisonReqIdRef.current) {
+            console.warn('Comparison load warning:', err.message);
+            setComparisonData(null);
+          }
         } finally {
-          setLoading(false);
+          if (reqId === comparisonReqIdRef.current) {
+            setLoading(false);
+          }
         }
       } else {
         setComparisonData(null);
+        setLoading(false);
       }
     }
     loadComparison();
@@ -91,7 +96,10 @@ export default function ComparisonView({ history = [], appMode = 'RESEARCH' }) {
     let emptyTitle = '';
     let emptyDesc = '';
 
-    if (isDemoMode) {
+    if (loading) {
+      emptyTitle = `Loading Paired Benchmark Telemetry for ${selectedScenario}...`;
+      emptyDesc = 'Retrieving and computing verified side-by-side empirical performance metrics.';
+    } else if (isDemoMode) {
       if (!hasHpa && !hasKeda) {
         emptyTitle = 'No demo comparison data available yet.';
         emptyDesc = 'Neither Reactive (HPA) nor Predictive (Prophet + KEDA) demo experiments have been completed for this scenario yet.';
@@ -101,6 +109,9 @@ export default function ComparisonView({ history = [], appMode = 'RESEARCH' }) {
       } else if (!hasHpa && hasKeda) {
         emptyTitle = 'No reactive demo comparison data available yet.';
         emptyDesc = 'Predictive (Prophet + KEDA) demo experiments are available for this scenario, but no completed Reactive HPA demo experiment is available for comparison yet.';
+      } else {
+        emptyTitle = 'Processing paired demo metrics...';
+        emptyDesc = 'Paired demo runs detected. Awaiting computed comparative analytics.';
       }
     } else {
       emptyTitle = `Awaiting Paired Benchmark Data for ${selectedScenario}`;
@@ -112,6 +123,9 @@ export default function ComparisonView({ history = [], appMode = 'RESEARCH' }) {
       } else if (!hasHpa && hasKeda) {
         const kedaP95 = kedaRun?.result?.k6P95LatencyMs ?? kedaRun?.result?.p95LatencyMs;
         emptyDesc = `Predictive KEDA experiment completed (P95: ${formatMs(kedaP95)}), but no Reactive HPA run exists for ${selectedScenario}. Run a Reactive HPA experiment to compare performance.`;
+      } else {
+        emptyTitle = `Awaiting Paired Benchmark Data for ${selectedScenario}`;
+        emptyDesc = 'Paired runs detected. Awaiting completed result calculation.';
       }
     }
 
@@ -144,7 +158,7 @@ export default function ComparisonView({ history = [], appMode = 'RESEARCH' }) {
             </div>
             <span className={`badge ${isDemoMode ? 'badge-amber' : 'badge-zinc'}`} style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}>
               <Sparkles size={13} style={{ marginRight: '4px' }} />
-              {isDemoMode ? 'DEMO SANDBOX EVALUATION' : 'AWAITING COMPLETE PAIR'}
+              {loading ? 'FETCHING DATA...' : isDemoMode ? 'DEMO SANDBOX EVALUATION' : 'AWAITING COMPLETE PAIR'}
             </span>
           </div>
 
@@ -174,9 +188,9 @@ export default function ComparisonView({ history = [], appMode = 'RESEARCH' }) {
           </div>
         </div>
 
-        {/* Empty State Banner */}
+        {/* Empty / Loading State Banner */}
         <div className="glass-panel" style={{ textAlign: 'center', padding: '3.5rem 1.5rem' }}>
-          <Scale size={48} color={isDemoMode ? '#f59e0b' : '#64748b'} style={{ margin: '0 auto 1rem', opacity: 0.6 }} />
+          <Scale size={48} color={loading ? '#06b6d4' : (isDemoMode ? '#f59e0b' : '#64748b')} style={{ margin: '0 auto 1rem', opacity: loading ? 0.9 : 0.6 }} />
           <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#ffffff', marginBottom: '0.5rem' }}>
             {emptyTitle}
           </h3>

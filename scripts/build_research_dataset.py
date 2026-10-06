@@ -288,7 +288,10 @@ class DatasetBuilder:
         df_man.to_csv(os.path.join(self.output_dir, "experiment_manifest.csv"), index=False)
 
         # Filtered final analysis dataset (only VALID runs)
-        df_final = df_exp[df_exp["data_quality_status"].isin(["VALID", "PILOT_HISTORICAL"])].copy()
+        if not df_exp.empty and "data_quality_status" in df_exp.columns:
+            df_final = df_exp[df_exp["data_quality_status"].isin(["VALID", "PILOT_HISTORICAL"])].copy()
+        else:
+            df_final = pd.DataFrame()
         df_final.to_csv(os.path.join(self.output_dir, "final_analysis_dataset.csv"), index=False)
         df_final.to_parquet(os.path.join(self.output_dir, "final_analysis_dataset.parquet"), index=False)
 

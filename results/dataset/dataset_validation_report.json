@@ -1,17 +1,17 @@
 {
-  "timestamp_utc": "2026-09-22T06:59:11.415025+00:00",
+  "timestamp_utc": "2026-10-05T15:15:11.533649+00:00",
   "total_experiments_scanned": 8,
-  "valid_experiments": 2,
-  "invalid_experiments": 6,
+  "valid_experiments": 7,
+  "invalid_experiments": 1,
   "rule_violations": [],
   "dataset_checksums": {
-    "master_experiments.csv": "251201f31c35e106c21868d23fe75bae31e2ebae7fae67eedd3d14559c4a6fb6",
-    "master_requests.csv": "c146c380dc0e1addead094370ef13527c6a47e8ac9b30fbd30f01b8e009ce151",
-    "master_timeseries.csv": "b06da116b132768aa1da948cc3fe6bc02ad31f0bfaa57b393bce2681b0b23ef7",
-    "master_forecasts.csv": "9bf7ce953b65843c0303f194d6f6b7df291a29928db08f5bb07763c97a067a07",
-    "master_scaling_events.csv": "fb2f4bdb094a14de231b2cc15c815958a5a2052342717c501153d16d8532b660",
-    "experiment_manifest.csv": "640cbd40fae6ff8d0681cc54ec78dfad0078dc4620fe5743d67adc4a59e8ce12",
-    "final_analysis_dataset.csv": "251201f31c35e106c21868d23fe75bae31e2ebae7fae67eedd3d14559c4a6fb6",
-    "final_analysis_dataset.parquet": "b14f71eb0dbc2552a745d6fa15860257cfb658b90682b3e460a675769fafa309"
+    "master_experiments.csv": "d14eb00705299c0d2743b113e3b0676529d5d8c422feed248b4da3ff50f2331d",
+    "master_requests.csv": "a0acf9225c2eae75e51114465c14165d162350a2673b225bae10a5dd5a4eb7a7",
+    "master_timeseries.csv": "e84375cb1844d7f7b3b3ac4fc27379e73fd441d89ad252e8e678d5c018ad9b3e",
+    "master_forecasts.csv": "d06114478f2cf2f9c8cd3c56b1be242934443fe1fa2ca7861ff0928485341dc9",
+    "master_scaling_events.csv": "1183079d17b32878d90124593f9e106fefe8d7914243dd19306af3ed64761fb5",
+    "experiment_manifest.csv": "c348512e9b00aaac2218bbad5cdd10bd499eeff634bdf98c1e9093d90a162d9a",
+    "final_analysis_dataset.csv": "3d89c4f0720f494414f9a3fa457d377f4d0a6ba7ba08f95ff6de8bb58b2e6770",
+    "final_analysis_dataset.parquet": "8735cc646aec1448a7ec8181805ce10ae80f7e28c04575d988ee4c710520032a"
   }
 }
