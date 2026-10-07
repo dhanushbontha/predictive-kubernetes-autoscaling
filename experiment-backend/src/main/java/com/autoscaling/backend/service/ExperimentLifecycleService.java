@@ -517,14 +517,39 @@ public class ExperimentLifecycleService {
             rmse = prometheusClientService.calculateRmse(reqSeries, predSeries);
         }
 
-        // 6. Query Real Kubernetes Pod Scaling Events & Delay
+        // 6. Query Real Kubernetes Pod Scaling Events & Timing Metrics
         List<ScalingEvent> scalingEvents = kubernetesService.extractScalingEvents(null, startTime, evaluationEndTime);
         Double avgScalingDelay = null;
+        Double avgProvisioningDelay = null;
+        Double avgDetectionSchedulingDelay = null;
+
         if (!scalingEvents.isEmpty()) {
-            avgScalingDelay = scalingEvents.stream()
-                    .mapToDouble(ScalingEvent::getScalingDelaySeconds)
-                    .average()
-                    .orElse(0.0);
+            var readyDelays = scalingEvents.stream()
+                    .map(ScalingEvent::getScalingDelaySeconds)
+                    .filter(java.util.Objects::nonNull)
+                    .mapToDouble(Double::doubleValue)
+                    .toArray();
+            if (readyDelays.length > 0) {
+                avgScalingDelay = java.util.stream.DoubleStream.of(readyDelays).average().orElse(0.0);
+            }
+
+            var provDelays = scalingEvents.stream()
+                    .map(ScalingEvent::getProvisioningDelaySeconds)
+                    .filter(java.util.Objects::nonNull)
+                    .mapToDouble(Double::doubleValue)
+                    .toArray();
+            if (provDelays.length > 0) {
+                avgProvisioningDelay = java.util.stream.DoubleStream.of(provDelays).average().orElse(0.0);
+            }
+
+            var schedDelays = scalingEvents.stream()
+                    .map(ScalingEvent::getDetectionSchedulingDelaySeconds)
+                    .filter(java.util.Objects::nonNull)
+                    .mapToDouble(Double::doubleValue)
+                    .toArray();
+            if (schedDelays.length > 0) {
+                avgDetectionSchedulingDelay = java.util.stream.DoubleStream.of(schedDelays).average().orElse(0.0);
+            }
         }
 
         // 7. Parse Discrete k6 Request-Level Telemetry from Pod Logs
@@ -572,6 +597,8 @@ public class ExperimentLifecycleService {
         result.setPeakReplicas(Math.max(1, peakReps));
         result.setAvgMemoryBytes(avgMem);
         result.setAvgScalingDelaySeconds(avgScalingDelay);
+        result.setAvgProvisioningDelaySeconds(avgProvisioningDelay);
+        result.setAvgDetectionSchedulingDelaySeconds(avgDetectionSchedulingDelay);
         result.setMae(mae);
         result.setRmse(rmse);
         result.setScalingEvents(scalingEvents);
@@ -736,6 +763,8 @@ public class ExperimentLifecycleService {
             sumData.put("peakReplicas", res.getPeakReplicas());
             sumData.put("avgMemoryBytes", res.getAvgMemoryBytes());
             sumData.put("avgScalingDelaySeconds", res.getAvgScalingDelaySeconds());
+            sumData.put("avgProvisioningDelaySeconds", res.getAvgProvisioningDelaySeconds());
+            sumData.put("avgDetectionSchedulingDelaySeconds", res.getAvgDetectionSchedulingDelaySeconds());
             sumData.put("mae", res.getMae());
             sumData.put("rmse", res.getRmse());
 

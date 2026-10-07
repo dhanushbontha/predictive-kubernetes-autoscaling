@@ -388,13 +388,26 @@ public class KubernetesOrchestratorService {
                     }
                 }
 
-                // A genuine scale-out event occurs when a NEW pod is created after the scale trigger
+                // A genuine scale-out event occurs when a NEW pod is created after the scale trigger (t_0)
                 if (creationTime != null && triggerTime != null && !creationTime.isBefore(triggerTime.minusSeconds(2))) {
-                    if (readyTime != null && readyTime.isAfter(creationTime)) {
-                        double delaySec = Math.max(0.0, java.time.Duration.between(triggerTime, readyTime).toMillis() / 1000.0);
-                        events.add(new com.autoscaling.backend.model.ScalingEvent(podName, triggerTime, creationTime, readyTime, delaySec));
-                        log.info("Captured genuine Pod Ready scale-out event: pod={}, t_trigger={}, t_creation={}, t_ready={}, D_scale={}s",
-                                podName, triggerTime, creationTime, readyTime, delaySec);
+                    if (endTime != null && creationTime.isAfter(endTime.plusSeconds(10))) {
+                        continue;
+                    }
+                    Double dDetectSched = Math.max(0.0, java.time.Duration.between(triggerTime, creationTime).toMillis() / 1000.0);
+                    Double dProvision = null;
+                    Double dE2e = null;
+
+                    if (readyTime != null && !readyTime.isBefore(creationTime)) {
+                        dProvision = Math.max(0.0, java.time.Duration.between(creationTime, readyTime).toMillis() / 1000.0);
+                        dE2e = Math.max(0.0, java.time.Duration.between(triggerTime, readyTime).toMillis() / 1000.0);
+                        events.add(new com.autoscaling.backend.model.ScalingEvent(podName, triggerTime, creationTime, readyTime, dE2e, dProvision, dDetectSched));
+                        log.info("Captured genuine Pod Ready scale-out event: pod={}, t0={}, t_creation={}, t_ready={}, D_E2E={}s, D_provision={}s, D_detect+sched={}s",
+                                podName, triggerTime, creationTime, readyTime, dE2e, dProvision, dDetectSched);
+                    } else {
+                        // Pod was created but did not achieve Ready state inside the window -> readiness metrics remain null (N/A)
+                        events.add(new com.autoscaling.backend.model.ScalingEvent(podName, triggerTime, creationTime, null, null, null, dDetectSched));
+                        log.info("Captured scale-out pod created but not yet Ready: pod={}, t0={}, t_creation={}, D_detect+sched={}s, D_E2E=N/A, D_provision=N/A",
+                                podName, triggerTime, creationTime, dDetectSched);
                     }
                 }
             }

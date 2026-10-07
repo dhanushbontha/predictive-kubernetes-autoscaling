@@ -648,7 +648,7 @@ export default function HistoryView({ history = [], onRefresh, appMode = 'RESEAR
               </div>
             </div>
 
-            {/* Section 2: Scaling Delays (Verified D_E2E and D_provision) */}
+            {/* Section 2: Scaling Delays (Verified D_E2E, D_provision, and D_detect+sched) */}
             <h3 style={{ fontSize: '0.85rem', marginBottom: '0.6rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               2. Scaling Delays & Resource Dynamics
             </h3>
@@ -661,21 +661,19 @@ export default function HistoryView({ history = [], onRefresh, appMode = 'RESEAR
                 </div>
               </div>
 
-              {selectedExp.result?.scalingEvents && selectedExp.result.scalingEvents.length > 0 && (
-                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)' }}>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>D_provision (t_ready - t_creation)</div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#06b6d4', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
-                    {(() => {
-                      const se = selectedExp.result.scalingEvents[0];
-                      if (se.podReadyTime && se.podCreationTime) {
-                        const dProv = (new Date(se.podReadyTime) - new Date(se.podCreationTime)) / 1000;
-                        return formatSeconds(dProv);
-                      }
-                      return 'N/A';
-                    })()}
-                  </div>
+              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>D_detect+sched (t_creation - t_0)</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#a78bfa', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
+                  {formatSeconds(selectedExp.result?.avgDetectionSchedulingDelaySeconds)}
                 </div>
-              )}
+              </div>
+
+              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>D_provision (t_ready - t_creation)</div>
+                <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#06b6d4', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
+                  {formatSeconds(selectedExp.result?.avgProvisioningDelaySeconds)}
+                </div>
+              </div>
 
               <div style={{ background: 'rgba(255,255,255,0.02)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-subtle)' }}>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Avg / Peak CPU</div>
@@ -691,6 +689,24 @@ export default function HistoryView({ history = [], onRefresh, appMode = 'RESEAR
                 </div>
               </div>
             </div>
+
+            {selectedExp.result?.scalingEvents && selectedExp.result.scalingEvents.length > 0 && (
+              <div style={{ background: 'rgba(255,255,255,0.015)', border: '1px solid var(--border-subtle)', borderRadius: '0.5rem', padding: '0.75rem', marginBottom: '1.25rem' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                  Captured Scale-Out Pod Lifecycle Events ({selectedExp.result.scalingEvents.length}):
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  {selectedExp.result.scalingEvents.map((se, sIdx) => (
+                    <div key={sIdx} style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', background: 'rgba(0,0,0,0.3)', padding: '0.4rem 0.6rem', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <span style={{ color: '#38bdf8' }}>{se.podName}</span>
+                      <span>D_E2E: <strong style={{ color: '#f59e0b' }}>{formatSeconds(se.scalingDelaySeconds)}</strong></span>
+                      <span>D_detect: <strong style={{ color: '#a78bfa' }}>{formatSeconds(se.detectionSchedulingDelaySeconds)}</strong></span>
+                      <span>D_prov: <strong style={{ color: '#06b6d4' }}>{formatSeconds(se.provisioningDelaySeconds)}</strong></span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Section 3: Forecast Accuracy (Out-of-sample) */}
             {selectedExp.autoscalingMode?.includes('PREDICTIVE') && (

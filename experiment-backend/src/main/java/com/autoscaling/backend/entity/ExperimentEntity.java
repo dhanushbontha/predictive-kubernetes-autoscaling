@@ -106,6 +106,8 @@ public class ExperimentEntity {
             resEntity.setPeakCpuPercent(res.getPeakCpuPercent());
             resEntity.setAvgMemoryBytes(res.getAvgMemoryBytes());
             resEntity.setAvgScalingDelaySeconds(res.getAvgScalingDelaySeconds());
+            resEntity.setAvgProvisioningDelaySeconds(res.getAvgProvisioningDelaySeconds());
+            resEntity.setAvgDetectionSchedulingDelaySeconds(res.getAvgDetectionSchedulingDelaySeconds());
             resEntity.setK6TotalRequests(res.getK6TotalRequests());
             resEntity.setK6SuccessfulRequests(res.getK6SuccessfulRequests());
             resEntity.setK6FailedRequests(res.getK6FailedRequests());
@@ -120,7 +122,8 @@ public class ExperimentEntity {
                 List<ScalingEventEntity> eventEntities = new ArrayList<>();
                 for (ScalingEvent se : res.getScalingEvents()) {
                     eventEntities.add(new ScalingEventEntity(
-                            se.getPodName(), se.getTriggerTime(), se.getPodCreationTime(), se.getPodReadyTime(), se.getScalingDelaySeconds()
+                            se.getPodName(), se.getTriggerTime(), se.getPodCreationTime(), se.getPodReadyTime(),
+                            se.getScalingDelaySeconds(), se.getProvisioningDelaySeconds(), se.getDetectionSchedulingDelaySeconds()
                     ));
                 }
                 resEntity.setScalingEvents(eventEntities);
@@ -160,6 +163,8 @@ public class ExperimentEntity {
             res.setPeakCpuPercent(this.result.getPeakCpuPercent());
             res.setAvgMemoryBytes(this.result.getAvgMemoryBytes());
             res.setAvgScalingDelaySeconds(this.result.getAvgScalingDelaySeconds());
+            res.setAvgProvisioningDelaySeconds(this.result.getAvgProvisioningDelaySeconds());
+            res.setAvgDetectionSchedulingDelaySeconds(this.result.getAvgDetectionSchedulingDelaySeconds());
             res.setK6TotalRequests(this.result.getK6TotalRequests());
             res.setK6SuccessfulRequests(this.result.getK6SuccessfulRequests());
             res.setK6FailedRequests(this.result.getK6FailedRequests());
@@ -174,7 +179,8 @@ public class ExperimentEntity {
                 List<ScalingEvent> events = new ArrayList<>();
                 for (ScalingEventEntity see : this.result.getScalingEvents()) {
                     events.add(new ScalingEvent(
-                            see.getPodName(), see.getTriggerTime(), see.getPodCreationTime(), see.getPodReadyTime(), see.getScalingDelaySeconds()
+                            see.getPodName(), see.getTriggerTime(), see.getPodCreationTime(), see.getPodReadyTime(),
+                            see.getScalingDelaySeconds(), see.getProvisioningDelaySeconds(), see.getDetectionSchedulingDelaySeconds()
                     ));
                 }
                 res.setScalingEvents(events);

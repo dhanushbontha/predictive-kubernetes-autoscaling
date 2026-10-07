@@ -10,7 +10,10 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
- * JPA entity representing a pod provisioning scaling event observation.
+ * JPA entity representing a pod provisioning scaling event observation:
+ * 1. D_E2E = t_ready - t_0
+ * 2. D_provision = t_ready - t_creation
+ * 3. D_detect+sched = t_creation - t_0
  */
 @Entity
 @Table(name = "scaling_events")
@@ -35,6 +38,12 @@ public class ScalingEventEntity {
     @Column(name = "scaling_delay_seconds")
     private Double scalingDelaySeconds;
 
+    @Column(name = "provisioning_delay_seconds")
+    private Double provisioningDelaySeconds;
+
+    @Column(name = "detection_scheduling_delay_seconds")
+    private Double detectionSchedulingDelaySeconds;
+
     public ScalingEventEntity() {
     }
 
@@ -44,6 +53,23 @@ public class ScalingEventEntity {
         this.podCreationTime = podCreationTime;
         this.podReadyTime = podReadyTime;
         this.scalingDelaySeconds = scalingDelaySeconds;
+        if (podReadyTime != null && podCreationTime != null && podReadyTime.isAfter(podCreationTime)) {
+            this.provisioningDelaySeconds = Math.max(0.0, java.time.Duration.between(podCreationTime, podReadyTime).toMillis() / 1000.0);
+        }
+        if (podCreationTime != null && triggerTime != null) {
+            this.detectionSchedulingDelaySeconds = Math.max(0.0, java.time.Duration.between(triggerTime, podCreationTime).toMillis() / 1000.0);
+        }
+    }
+
+    public ScalingEventEntity(String podName, Instant triggerTime, Instant podCreationTime, Instant podReadyTime,
+                              Double scalingDelaySeconds, Double provisioningDelaySeconds, Double detectionSchedulingDelaySeconds) {
+        this.podName = podName;
+        this.triggerTime = triggerTime;
+        this.podCreationTime = podCreationTime;
+        this.podReadyTime = podReadyTime;
+        this.scalingDelaySeconds = scalingDelaySeconds;
+        this.provisioningDelaySeconds = provisioningDelaySeconds;
+        this.detectionSchedulingDelaySeconds = detectionSchedulingDelaySeconds;
     }
 
     public Long getId() {
@@ -92,5 +118,21 @@ public class ScalingEventEntity {
 
     public void setScalingDelaySeconds(Double scalingDelaySeconds) {
         this.scalingDelaySeconds = scalingDelaySeconds;
+    }
+
+    public Double getProvisioningDelaySeconds() {
+        return provisioningDelaySeconds;
+    }
+
+    public void setProvisioningDelaySeconds(Double provisioningDelaySeconds) {
+        this.provisioningDelaySeconds = provisioningDelaySeconds;
+    }
+
+    public Double getDetectionSchedulingDelaySeconds() {
+        return detectionSchedulingDelaySeconds;
+    }
+
+    public void setDetectionSchedulingDelaySeconds(Double detectionSchedulingDelaySeconds) {
+        this.detectionSchedulingDelaySeconds = detectionSchedulingDelaySeconds;
     }
 }

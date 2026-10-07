@@ -158,16 +158,50 @@ class DatasetBuilder:
             # Scaling events parsing
             scaling_events = telemetry.get("scalingEvents", [])
             for se in scaling_events:
+                t0_iso = se.get("triggerTime")
+                t_creat_iso = se.get("podCreationTime")
+                t_ready_iso = se.get("podReadyTime")
+
+                d_e2e = se.get("scalingDelaySeconds")
+                d_prov = se.get("provisioningDelaySeconds")
+                d_sched = se.get("detectionSchedulingDelaySeconds")
+
+                # Parse fallback from ISO timestamps if fields were null in older json but timestamps exist
+                if d_prov is None and t_ready_iso and t_creat_iso:
+                    try:
+                        dt_r = datetime.fromisoformat(t_ready_iso.replace("Z", "+00:00"))
+                        dt_c = datetime.fromisoformat(t_creat_iso.replace("Z", "+00:00"))
+                        if dt_r > dt_c:
+                            d_prov = max(0.0, (dt_r - dt_c).total_seconds())
+                    except Exception:
+                        pass
+
+                if d_sched is None and t_creat_iso and t0_iso:
+                    try:
+                        dt_c = datetime.fromisoformat(t_creat_iso.replace("Z", "+00:00"))
+                        dt_0 = datetime.fromisoformat(t0_iso.replace("Z", "+00:00"))
+                        d_sched = max(0.0, (dt_c - dt_0).total_seconds())
+                    except Exception:
+                        pass
+
+                if d_e2e is None and t_ready_iso and t0_iso:
+                    try:
+                        dt_r = datetime.fromisoformat(t_ready_iso.replace("Z", "+00:00"))
+                        dt_0 = datetime.fromisoformat(t0_iso.replace("Z", "+00:00"))
+                        d_e2e = max(0.0, (dt_r - dt_0).total_seconds())
+                    except Exception:
+                        pass
+
                 scaling_events_list.append({
                     "experiment_id": exp_id,
                     "controller": controller,
-                    "decision_timestamp_utc": se.get("triggerTime"),
-                    "old_replica_count": 1,
-                    "new_replica_count": 2,
+                    "experiment_start_utc": t0_iso,
                     "pod_name": se.get("podName"),
-                    "pod_creation_timestamp_utc": se.get("podCreationTime"),
-                    "pod_ready_timestamp_utc": se.get("podReadyTime"),
-                    "provisioning_delay_seconds": se.get("scalingDelaySeconds"),
+                    "pod_creation_timestamp_utc": t_creat_iso,
+                    "pod_ready_timestamp_utc": t_ready_iso,
+                    "d_e2e_seconds": d_e2e,
+                    "d_provision_seconds": d_prov,
+                    "d_detect_sched_seconds": d_sched,
                 })
 
             # Forecast matching parsing
@@ -229,6 +263,9 @@ class DatasetBuilder:
                 "peak_pool_utilization": summary.get("peakCpuPercent"),
                 "scale_decision_count": len(scaling_events),
                 "scale_event_count": len(scaling_events),
+                "d_e2e_seconds": summary.get("avgScalingDelaySeconds"),
+                "d_provision_seconds": summary.get("avgProvisioningDelaySeconds"),
+                "d_detect_sched_seconds": summary.get("avgDetectionSchedulingDelaySeconds"),
                 "scale_delay_seconds": summary.get("avgScalingDelaySeconds"),
                 "forecast_mae_rps": summary.get("mae"),
                 "forecast_rmse_rps": summary.get("rmse"),

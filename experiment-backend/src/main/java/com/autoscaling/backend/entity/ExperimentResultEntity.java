@@ -69,6 +69,12 @@ public class ExperimentResultEntity {
     @Column(name = "avg_scaling_delay_seconds")
     private Double avgScalingDelaySeconds;
 
+    @Column(name = "avg_provisioning_delay_seconds")
+    private Double avgProvisioningDelaySeconds;
+
+    @Column(name = "avg_detection_scheduling_delay_seconds")
+    private Double avgDetectionSchedulingDelaySeconds;
+
     @Column(name = "k6_total_requests")
     private Long k6TotalRequests;
 
@@ -221,6 +227,22 @@ public class ExperimentResultEntity {
 
     public void setAvgScalingDelaySeconds(Double avgScalingDelaySeconds) {
         this.avgScalingDelaySeconds = avgScalingDelaySeconds;
+    }
+
+    public Double getAvgProvisioningDelaySeconds() {
+        return avgProvisioningDelaySeconds;
+    }
+
+    public void setAvgProvisioningDelaySeconds(Double avgProvisioningDelaySeconds) {
+        this.avgProvisioningDelaySeconds = avgProvisioningDelaySeconds;
+    }
+
+    public Double getAvgDetectionSchedulingDelaySeconds() {
+        return avgDetectionSchedulingDelaySeconds;
+    }
+
+    public void setAvgDetectionSchedulingDelaySeconds(Double avgDetectionSchedulingDelaySeconds) {
+        this.avgDetectionSchedulingDelaySeconds = avgDetectionSchedulingDelaySeconds;
     }
 
     public Long getK6TotalRequests() {

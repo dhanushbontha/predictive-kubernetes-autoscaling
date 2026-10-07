@@ -20,7 +20,9 @@ public class ExperimentResult {
     private Double avgCpuPercent;
     private Double peakCpuPercent;
     private Double avgMemoryBytes;
-    private Double avgScalingDelaySeconds;
+    private Double avgScalingDelaySeconds;              // D_E2E = t_ready - t_0
+    private Double avgProvisioningDelaySeconds;         // D_provision = t_ready - t_creation
+    private Double avgDetectionSchedulingDelaySeconds;  // D_detect+sched = t_creation - t_0
     private List<ScalingEvent> scalingEvents = new ArrayList<>();
 
     // Request-level discrete provenance fields
@@ -141,6 +143,22 @@ public class ExperimentResult {
 
     public void setAvgScalingDelaySeconds(Double avgScalingDelaySeconds) {
         this.avgScalingDelaySeconds = avgScalingDelaySeconds;
+    }
+
+    public Double getAvgProvisioningDelaySeconds() {
+        return avgProvisioningDelaySeconds;
+    }
+
+    public void setAvgProvisioningDelaySeconds(Double avgProvisioningDelaySeconds) {
+        this.avgProvisioningDelaySeconds = avgProvisioningDelaySeconds;
+    }
+
+    public Double getAvgDetectionSchedulingDelaySeconds() {
+        return avgDetectionSchedulingDelaySeconds;
+    }
+
+    public void setAvgDetectionSchedulingDelaySeconds(Double avgDetectionSchedulingDelaySeconds) {
+        this.avgDetectionSchedulingDelaySeconds = avgDetectionSchedulingDelaySeconds;
     }
 
     public List<ScalingEvent> getScalingEvents() {
