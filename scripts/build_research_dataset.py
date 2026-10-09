@@ -309,13 +309,37 @@ class DatasetBuilder:
             })
             run_idx += 1
 
+        # Column schemas for pristine empty tables
+        exp_cols = [
+            "run_number", "experiment_id", "scenario", "controller", "repetition", "target_rps",
+            "evaluation_duration_seconds", "slo_target_ms", "total_requests", "successful_requests",
+            "failed_requests", "slo_violations", "slo_violation_rate", "p95_latency_ms", "p99_latency_ms",
+            "mean_latency_ms", "max_latency_ms", "peak_replicas", "scale_out_events",
+            "d_e2e_seconds", "d_provision_seconds", "d_detect_sched_seconds",
+            "mae", "rmse", "mean_cpu_millicores", "peak_cpu_millicores", "mean_memory_bytes",
+            "warmup_start_utc", "warmup_end_utc", "training_start_utc", "training_end_utc",
+            "evaluation_start_utc", "evaluation_end_utc", "data_quality_status"
+        ]
+        req_cols = ["experiment_id", "timestamp_utc", "duration_ms", "status_code", "success", "slo_violation", "url", "method"]
+        ts_cols = ["experiment_id", "timestamp_utc", "actual_rps", "predicted_rps", "replicas", "ready_replicas", "cpu_millicores", "memory_bytes", "prometheus_sample_present", "scrape_gap"]
+        fc_cols = ["experiment_id", "timestamp_utc", "predicted_rps", "lead_time_seconds"]
+        se_cols = ["experiment_id", "pod_name", "trigger_time_utc", "pod_creation_time_utc", "pod_ready_time_utc", "d_e2e_seconds", "d_provision_seconds", "d_detect_sched_seconds"]
+        man_cols = [
+            "run_number", "experiment_id", "scenario", "controller", "repetition", "target_rps",
+            "evaluation_duration", "slo_threshold", "warmup_start_utc", "warmup_end_utc",
+            "training_start_utc", "training_end_utc", "evaluation_start_utc", "evaluation_end_utc",
+            "k6_raw_path", "prometheus_raw_path", "forecast_raw_path", "scaling_events_path",
+            "summary_path", "git_commit", "dataset_version", "controller_configuration_version",
+            "training_protocol_version", "data_quality_status"
+        ]
+
         # Save all dataframes to CSV & Parquet
-        df_exp = pd.DataFrame(experiments_list)
-        df_req = pd.DataFrame(requests_list)
-        df_ts = pd.DataFrame(timeseries_list)
-        df_fc = pd.DataFrame(forecasts_list)
-        df_se = pd.DataFrame(scaling_events_list)
-        df_man = pd.DataFrame(manifest_list)
+        df_exp = pd.DataFrame(experiments_list, columns=exp_cols) if not experiments_list else pd.DataFrame(experiments_list)
+        df_req = pd.DataFrame(requests_list, columns=req_cols) if not requests_list else pd.DataFrame(requests_list)
+        df_ts = pd.DataFrame(timeseries_list, columns=ts_cols) if not timeseries_list else pd.DataFrame(timeseries_list)
+        df_fc = pd.DataFrame(forecasts_list, columns=fc_cols) if not forecasts_list else pd.DataFrame(forecasts_list)
+        df_se = pd.DataFrame(scaling_events_list, columns=se_cols) if not scaling_events_list else pd.DataFrame(scaling_events_list)
+        df_man = pd.DataFrame(manifest_list, columns=man_cols) if not manifest_list else pd.DataFrame(manifest_list)
 
         df_exp.to_csv(os.path.join(self.output_dir, "master_experiments.csv"), index=False)
         df_req.to_csv(os.path.join(self.output_dir, "master_requests.csv"), index=False)
@@ -328,7 +352,7 @@ class DatasetBuilder:
         if not df_exp.empty and "data_quality_status" in df_exp.columns:
             df_final = df_exp[df_exp["data_quality_status"].isin(["VALID", "PILOT_HISTORICAL"])].copy()
         else:
-            df_final = pd.DataFrame()
+            df_final = pd.DataFrame(columns=exp_cols)
         df_final.to_csv(os.path.join(self.output_dir, "final_analysis_dataset.csv"), index=False)
         df_final.to_parquet(os.path.join(self.output_dir, "final_analysis_dataset.parquet"), index=False)
 

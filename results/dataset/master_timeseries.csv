@@ -1,1 +1,1 @@
-
+experiment_id,timestamp_utc,actual_rps,predicted_rps,replicas,ready_replicas,cpu_millicores,memory_bytes,prometheus_sample_present,scrape_gap

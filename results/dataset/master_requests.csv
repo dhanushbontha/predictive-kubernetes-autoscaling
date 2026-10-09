@@ -1,1 +1,1 @@
-
+experiment_id,timestamp_utc,duration_ms,status_code,success,slo_violation,url,method
